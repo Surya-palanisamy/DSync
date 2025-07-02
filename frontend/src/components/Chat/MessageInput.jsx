@@ -98,15 +98,8 @@ const ChatInput = ({ onSendMessage, onTyping, replyTo, setReplyTo }) => {
       )}
 
       {showEmojiPicker && (
-        <div className="emoji-picker-container">
-          <EmojiPicker
-            onEmojiClick={handleEmojiClick}
-            theme="dark"
-            height={350}
-            width="100%"
-            searchDisabled
-            skinTonesDisabled
-          />
+        <div className="emoji">
+          
         </div>
       )}
 
