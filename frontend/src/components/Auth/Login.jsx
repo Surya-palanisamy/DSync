@@ -14,7 +14,7 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import toast from "react-hot-toast";
 import "./Auth.css";
-import paperPlane from "../../public/paper-plane.png"; // Ensure this path is correct
+import paperPlane from "../../public/DSync.jpg"; // Ensure this path is correct
 const Login = () => {
   const [formData, setFormData] = useState({
     email: "",
