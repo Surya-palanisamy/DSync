@@ -50,13 +50,13 @@ const MessageItem = memo(
       };
 
       if (showMenu) {
-        document.addEventListener('mousedown', handleClickOutside);
-        document.addEventListener('touchstart', handleClickOutside);
+        document.addEventListener("mousedown", handleClickOutside);
+        document.addEventListener("touchstart", handleClickOutside);
       }
 
       return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-        document.removeEventListener('touchstart', handleClickOutside);
+        document.removeEventListener("mousedown", handleClickOutside);
+        document.removeEventListener("touchstart", handleClickOutside);
       };
     }, [showMenu]);
 
@@ -143,21 +143,28 @@ const MessageItem = memo(
 
     const handleMenuAction = (action) => {
       setShowMenu(false);
-      
+
       switch (action) {
-        case 'like':
+        case "like":
           onLike(message._id);
           break;
-        case 'reply':
+        case "reply":
           onReply(message);
           break;
-        case 'edit':
+        case "edit":
           setIsEditing(true);
           break;
-        case 'delete':
+        case "delete":
           onDelete(message._id);
           break;
       }
+    };
+
+    // Handle menu button click with proper event handling
+    const handleMenuClick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setShowMenu(!showMenu);
     };
 
     return (
@@ -288,6 +295,7 @@ const MessageItem = memo(
                   transition={{ type: "spring", stiffness: 500 }}
                 >
                   <Heart size={12} className="like-icon" />
+                 
                 </motion.div>
               )}
 
@@ -311,16 +319,23 @@ const MessageItem = memo(
               </div>
             </div>
 
-            {/* 3-dot menu button - always visible */}
+            {/* 3-dot menu button - always visible with improved touch handling */}
             {!isOptimistic && (
               <div className="message-menu-container" ref={menuRef}>
-                <motion.button
+                <button
                   className="message-menu-btn"
-                  onClick={() => setShowMenu(!showMenu)}
-                  whileTap={{ scale: 0.95 }}
+                  onClick={handleMenuClick}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleMenuClick(e);
+                  }}
+                  aria-label="Message options"
+                  type="button"
                 >
                   <MoreVertical size={16} />
-                </motion.button>
+                </button>
 
                 <AnimatePresence>
                   {showMenu && (
@@ -333,15 +348,23 @@ const MessageItem = memo(
                     >
                       <button
                         className="menu-item"
-                        onClick={() => handleMenuAction('like')}
+                        onClick={() => handleMenuAction("like")}
+                        onTouchEnd={(e) => {
+                          e.preventDefault();
+                          handleMenuAction("like");
+                        }}
                       >
                         <Heart size={16} className={isLiked ? "liked" : ""} />
-                        <span>{isLiked ? 'Unlike' : 'Like'}</span>
+                        <span>{isLiked ? "Unlike" : "Like"}</span>
                       </button>
 
                       <button
                         className="menu-item"
-                        onClick={() => handleMenuAction('reply')}
+                        onClick={() => handleMenuAction("reply")}
+                        onTouchEnd={(e) => {
+                          e.preventDefault();
+                          handleMenuAction("reply");
+                        }}
                       >
                         <Reply size={16} />
                         <span>Reply</span>
@@ -350,7 +373,11 @@ const MessageItem = memo(
                       {isOwn && message.messageType === "text" && (
                         <button
                           className="menu-item"
-                          onClick={() => handleMenuAction('edit')}
+                          onClick={() => handleMenuAction("edit")}
+                          onTouchEnd={(e) => {
+                            e.preventDefault();
+                            handleMenuAction("edit");
+                          }}
                         >
                           <Edit3 size={16} />
                           <span>Edit</span>
@@ -360,7 +387,11 @@ const MessageItem = memo(
                       {isOwn && (
                         <button
                           className="menu-item delete"
-                          onClick={() => handleMenuAction('delete')}
+                          onClick={() => handleMenuAction("delete")}
+                          onTouchEnd={(e) => {
+                            e.preventDefault();
+                            handleMenuAction("delete");
+                          }}
                         >
                           <Trash2 size={16} />
                           <span>Delete</span>

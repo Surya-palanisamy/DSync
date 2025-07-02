@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Send, ImageIcon, Smile, Mic, Paperclip, X } from "lucide-react";
+import { Send, ImageIcon, Smile, Paperclip, X } from "lucide-react";
 import EmojiPicker from "emoji-picker-react";
 
 const ChatInput = ({ onSendMessage, onTyping, replyTo, setReplyTo }) => {
