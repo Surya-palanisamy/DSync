@@ -158,7 +158,7 @@ const ChatInput = ({ onSendMessage, onTyping, replyTo, setReplyTo }) => {
         </div>
 
         <div className="input-actions-right">
-          {message.trim() || imageFile ? (
+          
             <motion.button
               type="submit"
               className="send-btn"
@@ -168,18 +168,7 @@ const ChatInput = ({ onSendMessage, onTyping, replyTo, setReplyTo }) => {
             >
               <Send size={18} />
             </motion.button>
-          ) : (
-            <motion.button
-              type="button"
-              className={`voice-btn ${isRecording ? "recording" : ""}`}
-              onClick={toggleRecording}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              title="Voice message"
-            >
-              <Mic size={18} />
-            </motion.button>
-          )}
+         
         </div>
 
         <input

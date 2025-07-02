@@ -288,7 +288,6 @@ const MessageItem = memo(
                   transition={{ type: "spring", stiffness: 500 }}
                 >
                   <Heart size={12} className="like-icon" />
-                  <span className="like-count">{}</span>
                 </motion.div>
               )}
 
