@@ -16,19 +16,23 @@ cloudinary.config({
 
 // Multer config
 const storage = multer.memoryStorage();
-const upload = multer({ 
-  storage, 
+const upload = multer({
+  storage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     // Allow all file types
     cb(null, true);
-  }
+  },
 });
 
-// Get all messages for a chat
+// Get all messages for a chat with pagination
 router.get("/:chatId", auth, async (req, res) => {
   try {
     const { chatId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
     const chat = await Chat.findOne({
       _id: chatId,
       users: { $elemMatch: { $eq: req.userId } },
@@ -43,12 +47,18 @@ router.get("/:chatId", auth, async (req, res) => {
         path: "replyTo",
         populate: {
           path: "sender",
-          select: "name"
-        }
+          select: "name",
+        },
       })
-      .sort({ createdAt: 1 });
+      .sort({ createdAt: -1 }) // Sort by newest first for pagination
+      .skip(skip)
+      .limit(limit)
+      .lean(); // Use lean for better performance
 
-    res.json(messages);
+    // Reverse to get chronological order (oldest first)
+    const chronologicalMessages = messages.reverse();
+
+    res.json(chronologicalMessages);
   } catch (error) {
     console.error("Get messages error:", error);
     res.status(500).json({ message: "Failed to fetch messages" });
@@ -82,23 +92,25 @@ router.put("/:id/edit", auth, async (req, res) => {
   try {
     const { content } = req.body;
     const message = await Message.findById(req.params.id);
-    
+
     if (!message) {
       return res.status(404).json({ message: "Message not found" });
     }
-    
+
     if (message.sender.toString() !== req.userId.toString()) {
-      return res.status(403).json({ message: "Not authorized to edit this message" });
+      return res
+        .status(403)
+        .json({ message: "Not authorized to edit this message" });
     }
-    
+
     if (message.messageType !== "text") {
       return res.status(400).json({ message: "Can only edit text messages" });
     }
-    
+
     message.content = content;
     message.isEdited = true;
     await message.save();
-    
+
     res.json({ success: true, message });
   } catch (error) {
     console.error("Edit message error:", error);
@@ -110,26 +122,31 @@ router.put("/:id/edit", auth, async (req, res) => {
 router.delete("/:id", auth, async (req, res) => {
   try {
     const message = await Message.findById(req.params.id);
-    
+
     if (!message) {
       return res.status(404).json({ message: "Message not found" });
     }
-    
+
     if (message.sender.toString() !== req.userId.toString()) {
-      return res.status(403).json({ message: "Not authorized to delete this message" });
+      return res
+        .status(403)
+        .json({ message: "Not authorized to delete this message" });
     }
-    
+
     // Delete file from cloudinary if it exists
     if (message.fileUrl && message.fileUrl.includes("cloudinary")) {
       try {
         const publicId = message.fileUrl.split("/").pop().split(".")[0];
-        const folder = message.messageType === "image" ? "chat-app/images" : "chat-app/files";
+        const folder =
+          message.messageType === "image"
+            ? "chat-app/images"
+            : "chat-app/files";
         await cloudinary.uploader.destroy(`${folder}/${publicId}`);
       } catch (deleteError) {
         console.log("Failed to delete file from cloudinary:", deleteError);
       }
     }
-    
+
     await Message.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: "Message deleted" });
   } catch (error) {
@@ -170,8 +187,8 @@ router.post("/", auth, async (req, res) => {
         path: "replyTo",
         populate: {
           path: "sender",
-          select: "name"
-        }
+          select: "name",
+        },
       });
 
     const deliveredTo = chat.users
@@ -245,8 +262,8 @@ router.post("/upload", auth, upload.single("file"), async (req, res) => {
         path: "replyTo",
         populate: {
           path: "sender",
-          select: "name"
-        }
+          select: "name",
+        },
       });
 
     const deliveredTo = chat.users

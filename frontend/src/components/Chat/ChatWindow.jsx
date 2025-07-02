@@ -27,12 +27,12 @@ const ChatWindow = React.memo(
     const [typingUsers, setTypingUsers] = useState([]);
     const [replyTo, setReplyTo] = useState(null);
     const { user } = useAuth();
-    const messagesEndRef = useRef(null);
     const typingTimeoutRef = useRef(null);
 
     const {
       messages,
       loading,
+      hasMore,
       sendMessage,
       editMessage,
       deleteMessage,
@@ -41,11 +41,8 @@ const ChatWindow = React.memo(
       addMessage,
       updateMessage,
       removeMessage,
+      loadMoreMessages,
     } = useMessages(selectedChat?._id);
-
-    useEffect(() => {
-      scrollToBottom();
-    }, [messages]);
 
     useEffect(() => {
       if (socket && selectedChat) {
@@ -141,10 +138,6 @@ const ChatWindow = React.memo(
       onUpdateChatLatestMessage,
       messages,
     ]);
-
-    const scrollToBottom = useCallback(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, []);
 
     const handleSendMessage = useCallback(
       async (content, messageType = "text", file = null, replyToMsg = null) => {
@@ -368,7 +361,7 @@ const ChatWindow = React.memo(
         </div>
 
         <div className="messages-container">
-          {loading ? (
+          {loading && messages.length === 0 ? (
             <div className="loading-messages">
               {[...Array(5)].map((_, i) => (
                 <div
@@ -390,9 +383,11 @@ const ChatWindow = React.memo(
               onReply={(msg) => setReplyTo(msg)}
               onEdit={handleEditMessage}
               onDelete={handleDeleteMessage}
+              hasMore={hasMore}
+              loading={loading}
+              onLoadMore={loadMoreMessages}
             />
           )}
-          <div ref={messagesEndRef} />
         </div>
 
         <MessageInput
