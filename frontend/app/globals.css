@@ -4,6 +4,13 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
 }
 
 body {
@@ -14,7 +21,23 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background: #000000;
   color: #ffffff;
-  overflow: hidden;
+  overflow-x: hidden;
+  min-height: 100vh;
+  min-height: 100dvh;
+  touch-action: manipulation;
+}
+
+/* Prevent pull-to-refresh on mobile */
+html,
+body {
+  overscroll-behavior: none;
+}
+
+/* Ensure inputs don't zoom on iOS */
+input,
+textarea,
+select {
+  font-size: 16px;
 }
 
 /* Light Theme */
@@ -195,11 +218,13 @@ body {
    ========================================== */
 
 .home-container {
-  height: 100vh;
+  min-height: 100vh;
+  min-height: 100dvh;
   background: #0a0a0a;
   color: #ffffff;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
@@ -924,35 +949,95 @@ body {
    Responsive Styles for Home & 404
    ========================================== */
 
-@media (max-width: 768px) {
+/* Large tablets and small desktops */
+@media (max-width: 1024px) {
   .home-nav {
-    padding: 16px 24px;
+    padding: 16px 40px;
+  }
+
+  .hero-section {
+    padding: 130px 24px 70px;
+  }
+
+  .hero-stats {
+    gap: 30px;
+    padding: 28px 40px;
+  }
+
+  .features-section {
+    padding: 80px 24px;
+  }
+
+  .cta-card {
+    padding: 50px 40px;
+  }
+}
+
+/* Tablets */
+@media (max-width: 768px) {
+  .home-container {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-y: auto;
+  }
+
+  .home-nav {
+    padding: 14px 20px;
   }
 
   .nav-link {
     display: none;
   }
 
+  .nav-links {
+    gap: 12px;
+  }
+
+  .user-name {
+    display: none;
+  }
+
+  .logo-icon {
+    width: 38px;
+    height: 38px;
+  }
+
   .hero-section {
-    padding: 120px 20px 60px;
+    padding: 100px 20px 50px;
+    min-height: auto;
+  }
+
+  .hero-title {
+    font-size: clamp(32px, 7vw, 48px);
+  }
+
+  .hero-subtitle {
+    font-size: 16px;
+    margin-bottom: 36px;
+    padding: 0 10px;
   }
 
   .hero-cta {
     flex-direction: column;
     width: 100%;
     max-width: 320px;
+    margin-bottom: 48px;
   }
 
   .cta-primary,
   .cta-secondary {
     width: 100%;
     justify-content: center;
+    padding: 16px 28px;
   }
 
   .hero-stats {
     flex-direction: column;
-    gap: 24px;
+    gap: 20px;
     padding: 24px 32px;
+    width: 100%;
+    max-width: 320px;
   }
 
   .stat-divider {
@@ -960,17 +1045,61 @@ body {
     height: 1px;
   }
 
+  .stat-number {
+    font-size: 24px;
+  }
+
   .features-section {
-    padding: 60px 20px;
+    padding: 50px 16px;
+  }
+
+  .features-header h2 {
+    font-size: 28px;
+  }
+
+  .features-header p {
+    font-size: 16px;
+  }
+
+  .features-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .feature-card {
+    padding: 24px;
+  }
+
+  .cta-section {
+    padding: 50px 16px 80px;
   }
 
   .cta-card {
-    padding: 40px 24px;
+    padding: 36px 20px;
+    border-radius: 24px;
+  }
+
+  .cta-card h2 {
+    font-size: 24px;
+  }
+
+  .cta-card p {
+    font-size: 15px;
+  }
+
+  .cta-btn {
+    padding: 14px 28px;
+    font-size: 15px;
   }
 
   .footer-content {
     flex-direction: column;
     gap: 16px;
+    text-align: center;
+  }
+
+  .not-found-content {
+    padding: 20px;
   }
 
   .not-found-actions {
@@ -983,38 +1112,290 @@ body {
     width: 100%;
     justify-content: center;
   }
+
+  .not-found-title {
+    font-size: 26px;
+  }
+
+  .not-found-description {
+    font-size: 14px;
+  }
+
+  /* Background orbs - reduce size for mobile */
+  .orb-1 {
+    width: 350px;
+    height: 350px;
+    top: -150px;
+    left: -100px;
+  }
+
+  .orb-2 {
+    width: 300px;
+    height: 300px;
+  }
+
+  .orb-3 {
+    width: 200px;
+    height: 200px;
+  }
 }
 
+/* Small phones */
 @media (max-width: 480px) {
+  .home-nav {
+    padding: 12px 16px;
+  }
+
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+
   .logo-text {
     font-size: 20px;
   }
 
   .nav-btn-primary {
-    padding: 10px 18px;
+    padding: 10px 16px;
+    font-size: 13px;
+    border-radius: 10px;
+  }
+
+  .nav-btn-logout {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+
+  .hero-section {
+    padding: 90px 16px 40px;
+  }
+
+  .hero-title {
+    font-size: clamp(28px, 8vw, 36px);
+    margin-bottom: 16px;
+  }
+
+  .hero-subtitle {
     font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 28px;
   }
 
   .hero-badge {
     font-size: 12px;
-    padding: 8px 16px;
+    padding: 8px 14px;
+    margin-bottom: 24px;
+  }
+
+  .hero-cta {
+    max-width: 100%;
+    padding: 0 10px;
+    margin-bottom: 40px;
+  }
+
+  .cta-primary,
+  .cta-secondary {
+    padding: 14px 24px;
+    font-size: 14px;
+    border-radius: 12px;
+  }
+
+  .hero-stats {
+    padding: 20px 24px;
+    max-width: 100%;
+    border-radius: 16px;
+  }
+
+  .stat-number {
+    font-size: 22px;
+  }
+
+  .stat-label {
+    font-size: 12px;
+  }
+
+  .features-section {
+    padding: 40px 16px;
+  }
+
+  .features-header {
+    margin-bottom: 40px;
   }
 
   .features-header h2 {
-    font-size: 28px;
-  }
-
-  .cta-card h2 {
     font-size: 24px;
   }
 
-  .not-found-logo {
-    width: 64px;
-    height: 64px;
+  .features-header p {
+    font-size: 14px;
+  }
+
+  .feature-card {
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .feature-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    margin-bottom: 16px;
+  }
+
+  .feature-card h3 {
+    font-size: 18px;
+  }
+
+  .feature-card p {
+    font-size: 14px;
+  }
+
+  .cta-section {
+    padding: 40px 16px 60px;
+  }
+
+  .cta-card {
+    padding: 28px 16px;
     border-radius: 20px;
   }
 
+  .cta-card h2 {
+    font-size: 20px;
+    margin-bottom: 12px;
+  }
+
+  .cta-card p {
+    font-size: 14px;
+    margin-bottom: 24px;
+  }
+
+  .cta-btn {
+    padding: 12px 24px;
+    font-size: 14px;
+    border-radius: 12px;
+  }
+
+  .home-footer {
+    padding: 24px 16px;
+  }
+
+  .home-footer p {
+    font-size: 12px;
+  }
+
+  .not-found-logo {
+    width: 60px;
+    height: 60px;
+    border-radius: 18px;
+    margin-bottom: 36px;
+  }
+
+  .digit {
+    font-size: clamp(60px, 15vw, 100px);
+  }
+
   .not-found-title {
-    font-size: 24px;
+    font-size: 22px;
+  }
+
+  .not-found-description {
+    font-size: 13px;
+    margin-bottom: 32px;
+  }
+
+  .action-btn {
+    padding: 14px 24px;
+    font-size: 14px;
+  }
+
+  /* Even smaller orbs for phones */
+  .orb-1 {
+    width: 250px;
+    height: 250px;
+  }
+
+  .orb-2 {
+    width: 200px;
+    height: 200px;
+  }
+
+  .orb-3 {
+    width: 150px;
+    height: 150px;
+  }
+}
+
+/* Very small phones */
+@media (max-width: 360px) {
+  .home-nav {
+    padding: 10px 12px;
+  }
+
+  .logo-text {
+    font-size: 18px;
+  }
+
+  .nav-btn-primary {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .hero-title {
+    font-size: 26px;
+  }
+
+  .hero-subtitle {
+    font-size: 13px;
+  }
+
+  .cta-primary,
+  .cta-secondary {
+    padding: 12px 20px;
+    font-size: 13px;
+  }
+
+  .features-header h2 {
+    font-size: 22px;
+  }
+
+  .cta-card h2 {
+    font-size: 18px;
+  }
+}
+
+/* Landscape mode for phones */
+@media (max-height: 500px) and (orientation: landscape) {
+  .home-container {
+    height: auto;
+  }
+
+  .hero-section {
+    min-height: auto;
+    padding: 80px 24px 40px;
+  }
+
+  .hero-title {
+    font-size: 32px;
+  }
+
+  .hero-stats {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .not-found-content {
+    padding: 20px;
+  }
+
+  .not-found-logo {
+    width: 50px;
+    height: 50px;
+    margin-bottom: 24px;
+  }
+
+  .digit {
+    font-size: 60px;
   }
 }
