@@ -240,7 +240,7 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       localStorage.removeItem("user");
       deleteUserCookie();
-      window.location.replace("/login");
+      window.location.replace("/");
     }
   }, []);
 
