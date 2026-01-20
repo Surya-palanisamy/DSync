@@ -1,30 +1,23 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import Link from "next/link";
 import {
-  MessageCircle,
-  Shield,
-  Zap,
-  Users,
-  Globe,
   ArrowRight,
-  Sparkles,
+  Globe,
   Lock,
+  LogOut,
+  MessageCircle,
   Send,
+  Shield,
+  Users,
+  Zap,
 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const router = useRouter();
-
-  useEffect(() => {
-    if (!loading && user) {
-      router.replace("/chat");
-    }
-  }, [user, loading, router]);
 
   // Show simple loading state
   if (loading) {
@@ -37,6 +30,11 @@ export default function Home() {
       </div>
     );
   }
+
+  const handleLogout = () => {
+    logout();
+    router.push("/login");
+  };
 
   const features = [
     {
@@ -81,22 +79,32 @@ export default function Home() {
           <span className="logo-text">DSync</span>
         </div>
         <div className="nav-links">
-          <Link href="/login" className="nav-link">
-            Sign In
-          </Link>
-          <Link href="/register" className="nav-btn-primary">
-            Get Started <ArrowRight size={16} />
-          </Link>
+          {user ? (
+            <>
+              <span className="user-name">Welcome, {user.name}</span>
+              <Link href="/chat" className="nav-link">
+                Go to Chat
+              </Link>
+              <button onClick={handleLogout} className="nav-btn-logout">
+                <LogOut size={16} />
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <Link href="/login" className="nav-link">
+                Sign In
+              </Link>
+              <Link href="/register" className="nav-btn-primary">
+                Get Started <ArrowRight size={16} />
+              </Link>
+            </>
+          )}
         </div>
       </nav>
 
       {/* Hero Section */}
       <section className="hero-section">
-        <div className="hero-badge">
-          <Sparkles size={14} />
-          <span>New: Voice messages now available</span>
-        </div>
-
         <h1 className="hero-title">
           Connect & Chat
           <br />
@@ -109,14 +117,23 @@ export default function Home() {
         </p>
 
         <div className="hero-cta">
-          <Link href="/register" className="cta-primary">
-            <span>Start Chatting Free</span>
-            <Send size={18} />
-          </Link>
-          <Link href="/login" className="cta-secondary">
-            <Lock size={18} />
-            <span>Sign In</span>
-          </Link>
+          {user ? (
+            <Link href="/chat" className="cta-primary">
+              <span>Go to Chat</span>
+              <Send size={18} />
+            </Link>
+          ) : (
+            <>
+              <Link href="/register" className="cta-primary">
+                <span>Start Chatting Free</span>
+                <Send size={18} />
+              </Link>
+              <Link href="/login" className="cta-secondary">
+                <Lock size={18} />
+                <span>Sign In</span>
+              </Link>
+            </>
+          )}
         </div>
 
         <div className="hero-stats">
@@ -156,16 +173,18 @@ export default function Home() {
       </section>
 
       {/* CTA Section */}
-      <section className="cta-section">
-        <div className="cta-card">
-          <h2>Ready to get started?</h2>
-          <p>Join thousands of users already connecting on DSync</p>
-          <Link href="/register" className="cta-btn">
-            Create Free Account
-            <ArrowRight size={18} />
-          </Link>
-        </div>
-      </section>
+      {!user && (
+        <section className="cta-section">
+          <div className="cta-card">
+            <h2>Ready to get started?</h2>
+            <p>Join thousands of users already connecting on DSync</p>
+            <Link href="/register" className="cta-btn">
+              Create Free Account
+              <ArrowRight size={18} />
+            </Link>
+          </div>
+        </section>
+      )}
 
       {/* Footer */}
       <footer className="home-footer">

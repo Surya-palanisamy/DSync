@@ -195,11 +195,13 @@ body {
    ========================================== */
 
 .home-container {
-  min-height: 100vh;
+  height: 100vh;
   background: #0a0a0a;
   color: #ffffff;
   position: relative;
-  overflow-x: hidden;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Animated Background */
@@ -242,7 +244,7 @@ body {
 
 .orb-3 {
   width: 350px;
-  height:  350px;
+  height: 350px;
   background: linear-gradient(135deg, #06b6d4 0%, #6366f1 100%);
   top: 50%;
   left: 50%;
@@ -390,6 +392,34 @@ body {
 .nav-btn-primary:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 30px rgba(139, 92, 246, 0.4);
+}
+
+.user-name {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 15px;
+  font-weight: 500;
+  padding: 0 8px;
+}
+
+.nav-btn-logout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 12px;
+  color: #ef4444;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.nav-btn-logout:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+  transform: translateY(-2px);
 }
 
 /* Hero Section */

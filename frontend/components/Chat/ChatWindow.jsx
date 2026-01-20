@@ -359,13 +359,21 @@ const ChatWindow = React.memo(
 
     if (!selectedChat) {
       return (
-        <div className="chat-window-empty">
-          <div className="empty-state">
-            <div className="empty-icon">💬</div>
-            <h3>DSync – perfect for connecting and sharing.</h3>
-            <p>Choose from your existing conversations or start a new one</p>
+        <>
+          <div className="chat-window-empty">
+            <div className="chat-bg">
+              <div className="gradient-orb orb-1"></div>
+              <div className="gradient-orb orb-2"></div>
+              <div className="gradient-orb orb-3"></div>
+              <div className="grid-pattern"></div>
+            </div>
+            <div className="empty-state">
+              <div className="empty-icon">💬</div>
+              <h3>DSync – perfect for connecting and sharing.</h3>
+              <p>Choose from your existing conversations or start a new one</p>
+            </div>
           </div>
-        </div>
+        </>
       );
     }
 
