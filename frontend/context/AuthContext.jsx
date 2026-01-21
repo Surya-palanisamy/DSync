@@ -60,7 +60,7 @@ const deleteUserCookie = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
@@ -123,6 +123,7 @@ export const AuthProvider = ({ children }) => {
     if (storedUser) setUser(storedUser);
 
     setInitialized(true);
+    setLoading(false);
     verifyWithServer();
   }, [verifyWithServer]);
 
@@ -240,7 +241,6 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       localStorage.removeItem("user");
       deleteUserCookie();
-      window.location.replace("/");
     }
   }, []);
 

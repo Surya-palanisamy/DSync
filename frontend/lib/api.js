@@ -1,7 +1,6 @@
 import axios from "axios";
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "https://dsync.onrender.com/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 const api = axios.create({
   baseURL: API_URL,
@@ -57,7 +56,13 @@ api.interceptors.response.use(
     if (typeof window !== "undefined") {
       if (error.response?.status === 401) {
         const currentPath = window.location.pathname;
-        if (currentPath !== "/login" && currentPath !== "/register") {
+        // Don't redirect on public pages (home, login, register) or during auth check
+        const isPublicPage =
+          currentPath === "/" ||
+          currentPath === "/login" ||
+          currentPath === "/register";
+        const isAuthCheck = error.config?.url?.includes("/auth/me");
+        if (!isPublicPage && !isAuthCheck) {
           localStorage.removeItem("user");
           window.location.href = "/login";
         }

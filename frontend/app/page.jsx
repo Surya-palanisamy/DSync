@@ -16,11 +16,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 export default function Home() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, initialized } = useAuth();
   const router = useRouter();
 
-  // Show simple loading state
-  if (loading) {
+  // Show simple loading state until auth is initialized
+  if (!initialized || loading) {
     return (
       <div className="loading-screen">
         <div className="loading-spinner">
@@ -69,39 +69,6 @@ export default function Home() {
         <div className="gradient-orb orb-3"></div>
         <div className="grid-pattern"></div>
       </div>
-
-      {/* Navigation */}
-      <nav className="home-nav">
-        <div className="nav-logo">
-          <div className="logo-icon">
-            <MessageCircle size={28} />
-          </div>
-          <span className="logo-text">DSync</span>
-        </div>
-        <div className="nav-links">
-          {user ? (
-            <>
-              <span className="user-name">Welcome, {user.name}</span>
-              <Link href="/chat" className="nav-link">
-                Go to Chat
-              </Link>
-              <button onClick={handleLogout} className="nav-btn-logout">
-                <LogOut size={16} />
-                Logout
-              </button>
-            </>
-          ) : (
-            <>
-              <Link href="/login" className="nav-link">
-                Sign In
-              </Link>
-              <Link href="/register" className="nav-btn-primary">
-                Get Started <ArrowRight size={16} />
-              </Link>
-            </>
-          )}
-        </div>
-      </nav>
 
       {/* Hero Section */}
       <section className="hero-section">

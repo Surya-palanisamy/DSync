@@ -2,6 +2,44 @@
    Modern Auth Pages Styles
    ========================================== */
 
+/* Auth Home Button */
+.auth-home-btn {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 16px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.auth-home-btn:hover {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(139, 92, 246, 0.2);
+}
+
+.auth-home-btn svg {
+  color: #8b5cf6;
+}
+
+.auth-home-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
 /* Auth Page Layout */
 .auth-page {
   min-height: 100vh;
@@ -273,6 +311,23 @@
 
 .input-field input::placeholder {
   color: rgba(255, 255, 255, 0.4);
+}
+
+/* Fix browser autocomplete/autofill background */
+.input-field input:-webkit-autofill,
+.input-field input:-webkit-autofill:hover,
+.input-field input:-webkit-autofill:focus,
+.input-field input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px rgba(20, 20, 30, 1) inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  transition: background-color 5000s ease-in-out 0s;
+  caret-color: #ffffff;
+}
+
+/* Firefox autofill */
+.input-field input:autofill {
+  background: rgba(20, 20, 30, 1) !important;
+  color: #ffffff !important;
 }
 
 .toggle-password {

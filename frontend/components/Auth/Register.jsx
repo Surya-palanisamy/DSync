@@ -104,6 +104,12 @@ const Register = () => {
 
   return (
     <div className="auth-page">
+      <Link href="/" className="auth-home-btn">
+        <div className="sidebar-title">
+          DSync
+        </div>
+      </Link>
+
       {/* Animated Background */}
       <div className="auth-bg">
         <div className="gradient-sphere sphere-1"></div>

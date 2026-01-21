@@ -26,6 +26,11 @@ const Sidebar = memo(
     const { user, logout } = useAuth();
     const router = useRouter();
 
+    const handleLogout = async () => {
+      await logout();
+      router.push("/");
+    };
+
     const handleNewChat = async (userId) => {
       try {
         const newChat = await onCreateChat(userId);
@@ -74,7 +79,7 @@ const Sidebar = memo(
 
               <div className="sidebar-title" onClick={() => router.push("/")}>
                 DSync
-              </div>
+              </div>  
             </div>
 
             {/* Row 2: Action Buttons */}
@@ -95,7 +100,7 @@ const Sidebar = memo(
               </button>
               <button
                 className="sidebar-action-btn sidebar-logout-btn"
-                onClick={logout}
+                onClick={handleLogout}
                 title="Logout"
               >
                 <LogOut size={18} />

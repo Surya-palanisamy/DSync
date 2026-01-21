@@ -6,16 +6,16 @@ import { useAuth } from "@/context/AuthContext";
 import Register from "@/components/Auth/Register";
 
 export default function RegisterPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, initialized } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && user) {
+    if (initialized && !loading && user) {
       router.replace("/chat");
     }
-  }, [user, loading, router]);
+  }, [user, loading, initialized, router]);
 
-  if (loading) {
+  if (!initialized || loading) {
     return (
       <div className="loading-screen">
         <div className="loading-spinner">

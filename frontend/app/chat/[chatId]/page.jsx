@@ -6,16 +6,16 @@ import { useAuth } from "@/context/AuthContext";
 import Chat from "@/components/Chat/Chat";
 
 export default function ChatWithIdPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, initialized } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (initialized && !loading && !user) {
       router.replace("/login");
     }
-  }, [user, loading, router]);
+  }, [user, loading, initialized, router]);
 
-  if (loading) {
+  if (!initialized || loading) {
     return (
       <div className="loading-screen">
         <div className="loading-spinner">

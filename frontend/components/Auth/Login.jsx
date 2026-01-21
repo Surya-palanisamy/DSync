@@ -94,6 +94,13 @@ const Login = () => {
 
   return (
     <div className="auth-page">
+      {/* Home Navigation */}
+      <Link href="/" className="auth-home-btn">
+        <div className="sidebar-title" >
+          DSync
+        </div>
+      </Link>
+
       {/* Animated Background */}
       <div className="auth-bg">
         <div className="gradient-sphere sphere-1"></div>
@@ -123,7 +130,7 @@ const Login = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
           >
-            Welcome to DSync
+            Welcome to DSync!
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 20 }}
