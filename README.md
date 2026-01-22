@@ -1,13 +1,13 @@
 # DSync - Real-Time Chat Application
 
 <p align="center">
-  <img src="https://img.shields.io/badge/React-18.x-61DAFB?style=for-the-badge&logo=react" alt="React" />
-  <img src="https://img.shields.io/badge/Node.js-18.x-339933?style=for-the-badge&logo=node.js" alt="Node.js" />
+  <img src="https://img.shields.io/badge/React-19.x-61DAFB?style=for-the-badge&logo=react" alt="React" />
+  
   <img src="https://img.shields.io/badge/MongoDB-6.x-47A248?style=for-the-badge&logo=mongodb" alt="MongoDB" />
   <img src="https://img.shields.io/badge/Socket.io-4.x-010101?style=for-the-badge&logo=socket.io" alt="Socket.io" />
 </p>
 
-A modern, feature-rich real-time chat application built with React, Node.js, MongoDB, and Socket.io. DSync provides seamless messaging with delivery status indicators, typing indicators, and push notifications.
+A modern, feature-rich real-time chat application built with React, Bun js, MongoDB, and Socket.io. DSync provides seamless messaging with delivery status indicators, typing indicators, and push notifications.
 
 ## ✨ Features
 
@@ -22,7 +22,7 @@ A modern, feature-rich real-time chat application built with React, Node.js, Mon
 
 ### Prerequisites
 
-- Node.js 18.x or higher
+- Node.js 18.x or higher or Bun js
 - MongoDB database (local or MongoDB Atlas)
 - Cloudinary account (for file uploads)
 

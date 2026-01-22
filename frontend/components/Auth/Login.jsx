@@ -96,9 +96,7 @@ const Login = () => {
     <div className="auth-page">
       {/* Home Navigation */}
       <Link href="/" className="auth-home-btn">
-        <div className="sidebar-title" >
-          DSync
-        </div>
+        <div className="sidebar-title">DSync</div>
       </Link>
 
       {/* Animated Background */}
