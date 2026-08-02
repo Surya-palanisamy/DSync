@@ -1,7 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { ArrowLeft, MoreVertical, Phone, Video } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowLeft, MoreVertical, Phone, Video, RotateCcw, Trash2 } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -23,13 +23,43 @@ const ChatWindow = React.memo(
     onlineUsers,
     onUpdateChatLatestMessage,
     onBackToList,
+    onClearChat,
+    onDeleteChat,
   }) => {
     const [typing, setTyping] = useState(false);
     const [typingUsers, setTypingUsers] = useState([]);
     const [replyTo, setReplyTo] = useState(null);
+    const [showHeaderMenu, setShowHeaderMenu] = useState(false);
 
     const { user } = useAuth();
     const typingTimeoutRef = useRef(null);
+    const headerMenuRef = useRef(null);
+
+    // Click outside handler for header menu
+    useEffect(() => {
+      const handleClickOutside = (event) => {
+        if (
+          headerMenuRef.current &&
+          !headerMenuRef.current.contains(event.target)
+        ) {
+          setShowHeaderMenu(false);
+        }
+      };
+
+      if (showHeaderMenu) {
+        document.addEventListener("mousedown", handleClickOutside);
+        document.addEventListener("touchstart", handleClickOutside);
+      }
+
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+        document.removeEventListener("touchstart", handleClickOutside);
+      };
+    }, [showHeaderMenu]);
+
+    // Use a ref for messages inside socket event handlers to avoid
+    // re-subscribing on every message change
+    const messagesRef = useRef([]);
 
     const {
       messages,
@@ -44,8 +74,46 @@ const ChatWindow = React.memo(
       updateMessage,
       removeMessage,
       loadMoreMessages,
-    } = useMessages(selectedChat?._id);
+      clearAllMessages,
+    } = useMessages(selectedChat?._id, user);
 
+    const handleClearChat = async () => {
+      if (!selectedChat?._id || !onClearChat) return;
+      setShowHeaderMenu(false);
+      if (
+        window.confirm("Are you sure you want to clear all messages in this chat?")
+      ) {
+        try {
+          await onClearChat(selectedChat._id);
+          clearAllMessages();
+        } catch (e) {
+          console.error("Clear chat error:", e);
+        }
+      }
+    };
+
+    const handleDeleteChat = async () => {
+      if (!selectedChat?._id || !onDeleteChat) return;
+      setShowHeaderMenu(false);
+      if (
+        window.confirm("Are you sure you want to delete this chat permanently?")
+      ) {
+        try {
+          await onDeleteChat(selectedChat._id);
+          clearAllMessages();
+          if (onBackToList) onBackToList();
+        } catch (e) {
+          console.error("Delete chat error:", e);
+        }
+      }
+    };
+
+    // Keep messagesRef in sync
+    useEffect(() => {
+      messagesRef.current = messages;
+    }, [messages]);
+
+    // Socket event handlers — NO `messages` in dependency array
     useEffect(() => {
       if (socket && selectedChat) {
         socket.emit("join-chat", selectedChat._id);
@@ -109,8 +177,11 @@ const ChatWindow = React.memo(
 
         const handleMessageRead = (data) => {
           if (data.chatId === selectedChat._id) {
+            // Use messagesRef instead of messages to avoid stale closures
+            const currentMessages = messagesRef.current;
             const existingReadBy =
-              messages.find((m) => m._id === data.messageId)?.readBy || [];
+              currentMessages.find((m) => m._id === data.messageId)?.readBy ||
+              [];
             const alreadyRead = existingReadBy.some(
               (r) => r.user?._id === data.userId || r.user === data.userId,
             );
@@ -129,7 +200,10 @@ const ChatWindow = React.memo(
 
         const handleMessageDelivered = (data) => {
           if (data.chatId === selectedChat._id) {
-            const msg = messages.find((m) => m._id === data.messageId);
+            const currentMessages = messagesRef.current;
+            const msg = currentMessages.find(
+              (m) => m._id === data.messageId,
+            );
             const existing = msg?.deliveredTo || [];
             const already = existing.some(
               (d) =>
@@ -201,7 +275,7 @@ const ChatWindow = React.memo(
       removeMessage,
       markAsRead,
       onUpdateChatLatestMessage,
-      messages,
+      // `messages` deliberately excluded — using messagesRef instead
     ]);
 
     const handleSendMessage = useCallback(
@@ -413,6 +487,7 @@ const ChatWindow = React.memo(
               className="action-btn"
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
+              title="Call"
             >
               <Phone size={18} />
             </motion.button>
@@ -420,16 +495,87 @@ const ChatWindow = React.memo(
               className="action-btn"
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
+              title="Video call"
             >
               <Video size={18} />
             </motion.button>
-            <motion.button
-              className="action-btn"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-            >
-              <MoreVertical size={18} />
-            </motion.button>
+            <div style={{ position: "relative" }} ref={headerMenuRef}>
+              <motion.button
+                className="action-btn"
+                onClick={() => setShowHeaderMenu(!showHeaderMenu)}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                title="Chat options"
+              >
+                <MoreVertical size={18} />
+              </motion.button>
+
+              <AnimatePresence>
+                {showHeaderMenu && (
+                  <motion.div
+                    className="chat-header-dropdown"
+                    initial={{ opacity: 0, scale: 0.9, y: -10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9, y: -10 }}
+                    transition={{ duration: 0.15 }}
+                    style={{
+                      position: "absolute",
+                      right: 0,
+                      top: "100%",
+                      marginTop: "8px",
+                      background: "#18181b",
+                      border: "1px solid #27272a",
+                      borderRadius: "12px",
+                      padding: "6px",
+                      boxShadow: "0 8px 24px rgba(0, 0, 0, 0.4)",
+                      zIndex: 100,
+                      minWidth: "160px",
+                    }}
+                  >
+                    <button
+                      className="menu-item"
+                      onClick={handleClearChat}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        width: "100%",
+                        padding: "8px 12px",
+                        background: "none",
+                        border: "none",
+                        color: "#e4e4e7",
+                        fontSize: "14px",
+                        cursor: "pointer",
+                        borderRadius: "8px",
+                      }}
+                    >
+                      <RotateCcw size={16} />
+                      <span>Clear Chat</span>
+                    </button>
+                    <button
+                      className="menu-item delete"
+                      onClick={handleDeleteChat}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        width: "100%",
+                        padding: "8px 12px",
+                        background: "none",
+                        border: "none",
+                        color: "#ef4444",
+                        fontSize: "14px",
+                        cursor: "pointer",
+                        borderRadius: "8px",
+                      }}
+                    >
+                      <Trash2 size={16} />
+                      <span>Delete Chat</span>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
 
@@ -486,6 +632,7 @@ const ChatWindow = React.memo(
           onTyping={handleTyping}
           replyTo={replyTo}
           setReplyTo={setReplyTo}
+          currentUser={user}
         />
       </div>
     );

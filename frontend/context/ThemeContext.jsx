@@ -18,13 +18,28 @@ export const ThemeProvider = ({ children }) => {
 
   useEffect(() => {
     const saved = localStorage.getItem("theme");
-    setIsDark(saved ? JSON.parse(saved) : false);
+    if (saved) {
+      if (saved === "dark" || saved === "true") {
+        setIsDark(true);
+      } else if (saved === "light" || saved === "false") {
+        setIsDark(false);
+      } else {
+        try {
+          const parsed = JSON.parse(saved);
+          setIsDark(Boolean(parsed));
+        } catch {
+          setIsDark(false);
+        }
+      }
+    } else {
+      setIsDark(false);
+    }
     setMounted(true);
   }, []);
 
   useEffect(() => {
     if (mounted) {
-      localStorage.setItem("theme", JSON.stringify(isDark));
+      localStorage.setItem("theme", isDark ? "dark" : "light");
       document.documentElement.className = isDark ? "dark" : "light";
     }
   }, [isDark, mounted]);

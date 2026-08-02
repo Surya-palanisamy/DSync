@@ -79,4 +79,9 @@ const messageSchema = new mongoose.Schema(
   }
 );
 
+// Compound index for paginated message queries (the most expensive query in the app)
+messageSchema.index({ chat: 1, createdAt: -1 });
+// Index for sender-based authorization checks
+messageSchema.index({ sender: 1 });
+
 module.exports = mongoose.model("Message", messageSchema);

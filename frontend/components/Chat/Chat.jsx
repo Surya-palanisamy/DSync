@@ -22,8 +22,15 @@ const Chat = React.memo(() => {
 
   const { user } = useAuth();
   const { socket, onlineUsers } = useSocket(user);
-  const { chats, loading, createChat, updateChatLatestMessage, fetchChatById } =
-    useChat();
+  const {
+    chats,
+    loading,
+    createChat,
+    updateChatLatestMessage,
+    fetchChatById,
+    clearChatMessages,
+    deleteChat,
+  } = useChat();
 
   const handleResize = useCallback(() => {
     const mobile = typeof window !== "undefined" && window.innerWidth <= 768;
@@ -105,6 +112,23 @@ const Chat = React.memo(() => {
     }
   }, [chats, selectedChat]);
 
+  // Global socket listener for background incoming messages (updates sidebar chats list in realtime for receivers)
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleGlobalReceiveMessage = (data) => {
+      if (data && data.chatId) {
+        updateChatLatestMessage(data.chatId, data);
+        socket.emit("join-chat", data.chatId);
+      }
+    };
+
+    socket.on("receive-message", handleGlobalReceiveMessage);
+    return () => {
+      socket.off("receive-message", handleGlobalReceiveMessage);
+    };
+  }, [socket, updateChatLatestMessage]);
+
   const handleSelectChat = useCallback(
     (chat) => {
       if (!chat) return;
@@ -124,6 +148,19 @@ const Chat = React.memo(() => {
     setSelectedChat(null);
     router.push("/chat");
   }, [router]);
+
+  const handleDeleteChat = useCallback(
+    async (chatIdToDelete) => {
+      try {
+        await deleteChat(chatIdToDelete);
+        setSelectedChat((current) => (current?._id === chatIdToDelete ? null : current));
+        router.push("/chat");
+      } catch (error) {
+        console.error("Delete chat error:", error);
+      }
+    },
+    [deleteChat, router],
+  );
 
   const handleNewChat = useCallback(
     async (userId) => {
@@ -158,6 +195,7 @@ const Chat = React.memo(() => {
               onlineUsers={onlineUsers}
               onChatSelect={handleSelectChat}
               onCreateChat={handleNewChat}
+              onDeleteChat={handleDeleteChat}
             />
             {!isMobile && (
               <div className="resize-handle" onMouseDown={handleMouseDown}>
@@ -181,6 +219,8 @@ const Chat = React.memo(() => {
               onlineUsers={onlineUsers}
               onUpdateChatLatestMessage={updateChatLatestMessage}
               onBackToList={handleBackToList}
+              onClearChat={clearChatMessages}
+              onDeleteChat={handleDeleteChat}
             />
           </motion.div>
         )}

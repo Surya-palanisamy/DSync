@@ -6,6 +6,8 @@ import {
   useState,
   useEffect,
   useCallback,
+  useMemo,
+  useRef,
 } from "react";
 import api from "@/lib/api";
 
@@ -19,76 +21,56 @@ export const useAuth = () => {
   return context;
 };
 
-const COOKIE_NAME = "dsync_user";
-
-const setUserCookie = (user, days = 30) => {
-  if (typeof window === "undefined") return;
-  try {
-    const maxAge = days * 24 * 60 * 60;
-    const value = encodeURIComponent(JSON.stringify(user));
-    document.cookie = `${COOKIE_NAME}=${value}; Max-Age=${maxAge}; Path=/; SameSite=None; Secure`;
-  } catch (e) {
-    console.error("Failed to set user cookie:", e);
-  }
-};
-
-const getUserCookie = () => {
-  if (typeof window === "undefined") return null;
-  try {
-    const cookies = document.cookie ? document.cookie.split("; ") : [];
-    for (const c of cookies) {
-      const [name, ...rest] = c.split("=");
-      if (name === COOKIE_NAME) {
-        const value = rest.join("=");
-        return JSON.parse(decodeURIComponent(value));
-      }
-    }
-  } catch (e) {
-    console.error("Failed to parse user cookie:", e);
-  }
-  return null;
-};
-
-const deleteUserCookie = () => {
-  if (typeof window === "undefined") return;
-  try {
-    document.cookie = `${COOKIE_NAME}=; Max-Age=0; Path=/; SameSite=None; Secure`;
-  } catch (e) {
-    console.error("Failed to delete user cookie:", e);
-  }
-};
-
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const abortControllerRef = useRef(null);
 
-  const verifyWithServer = useCallback(async () => {
+  const verifyWithServer = useCallback(async (retryCount = 0) => {
+    // Cancel any in-flight verification
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setVerifying(true);
     try {
-      const response = await api.get("/auth/me");
+      const response = await api.get("/auth/me", {
+        signal: controller.signal,
+      });
       if (response.data.success && response.data.user) {
         const userData = response.data.user;
         setUser(userData);
         localStorage.setItem("user", JSON.stringify(userData));
-        setUserCookie(userData);
       } else {
         setUser(null);
         localStorage.removeItem("user");
-        deleteUserCookie();
       }
     } catch (error) {
+      // Don't handle aborted requests
+      if (error.name === "CanceledError" || error.name === "AbortError") {
+        return;
+      }
+
       // Only log unexpected errors (not 401 which is expected when not logged in)
       if (error.response?.status !== 401) {
         console.error(
           "Auth verification failed:",
           error.response?.data?.message || error.message,
         );
+
+        // Retry once on network error (not on 4xx/5xx)
+        if (!error.response && retryCount < 1) {
+          setTimeout(() => verifyWithServer(retryCount + 1), 3000);
+          return;
+        }
       }
       setUser(null);
       localStorage.removeItem("user");
-      deleteUserCookie();
     } finally {
       setVerifying(false);
     }
@@ -106,20 +88,6 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem("user");
     }
 
-    if (!storedUser) {
-      const cookieUser = getUserCookie();
-      if (cookieUser) {
-        storedUser = cookieUser;
-        try {
-          localStorage.setItem("user", JSON.stringify(cookieUser));
-        } catch (e) {
-          console.warn(
-            "localStorage set failed, continuing with cookie-only user",
-          );
-        }
-      }
-    }
-
     if (storedUser) setUser(storedUser);
 
     setInitialized(true);
@@ -129,6 +97,13 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     initializeAuth();
+
+    // Cleanup: abort any in-flight verification on unmount
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [initializeAuth]);
 
   const login = async (email, password) => {
@@ -143,7 +118,6 @@ export const AuthProvider = ({ children }) => {
         const userData = response.data.user;
         setUser(userData);
         localStorage.setItem("user", JSON.stringify(userData));
-        setUserCookie(userData);
         return response.data;
       } else {
         throw new Error(response.data.message || "Login failed");
@@ -151,7 +125,6 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error("Login error:", error);
       localStorage.removeItem("user");
-      deleteUserCookie();
       throw error;
     } finally {
       setLoading(false);
@@ -171,7 +144,6 @@ export const AuthProvider = ({ children }) => {
         const userData = response.data.user;
         setUser(userData);
         localStorage.setItem("user", JSON.stringify(userData));
-        setUserCookie(userData);
         return response.data;
       } else {
         throw new Error(response.data.message || "Registration failed");
@@ -179,7 +151,6 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error("Registration error:", error);
       localStorage.removeItem("user");
-      deleteUserCookie();
       throw error;
     } finally {
       setLoading(false);
@@ -194,7 +165,6 @@ export const AuthProvider = ({ children }) => {
         const userData = response.data.user;
         setUser(userData);
         localStorage.setItem("user", JSON.stringify(userData));
-        setUserCookie(userData);
         return response.data;
       }
     } catch (error) {
@@ -221,7 +191,6 @@ export const AuthProvider = ({ children }) => {
         const userData = response.data.user;
         setUser(userData);
         localStorage.setItem("user", JSON.stringify(userData));
-        setUserCookie(userData);
         return response.data;
       }
     } catch (error) {
@@ -240,21 +209,24 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setUser(null);
       localStorage.removeItem("user");
-      deleteUserCookie();
     }
   }, []);
 
-  const value = {
-    user,
-    login,
-    register,
-    updateProfile,
-    uploadAvatar,
-    logout,
-    loading,
-    initialized,
-    verifying,
-  };
+  // Memoize context value to prevent unnecessary re-renders of all consumers
+  const value = useMemo(
+    () => ({
+      user,
+      login,
+      register,
+      updateProfile,
+      uploadAvatar,
+      logout,
+      loading,
+      initialized,
+      verifying,
+    }),
+    [user, logout, loading, initialized, verifying],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

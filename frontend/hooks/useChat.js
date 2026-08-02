@@ -15,6 +15,13 @@ export const useChat = () => {
       setChats(response.data);
       storage.setChats(response.data);
     } catch (error) {
+      if (
+        error?.name === "CanceledError" ||
+        error?.name === "AbortError" ||
+        error?.message === "canceled"
+      ) {
+        return;
+      }
       console.error("Failed to fetch chats:", error);
       toast.error("Failed to load chats");
     } finally {
@@ -74,14 +81,88 @@ export const useChat = () => {
     }
   }, []);
 
-  const updateChatLatestMessage = useCallback((chatId, message) => {
-    setChats((prevChats) => {
-      const updatedChats = prevChats.map((chat) =>
-        chat._id === chatId ? { ...chat, latestMessage: message } : chat,
-      );
-      storage.setChats(updatedChats);
-      return updatedChats;
-    });
+  const updateChatLatestMessage = useCallback(
+    async (chatId, message) => {
+      if (!chatId) return;
+
+      let chatFound = false;
+
+      setChats((prevChats) => {
+        const existingIndex = prevChats.findIndex((c) => c._id === chatId);
+        if (existingIndex !== -1) {
+          chatFound = true;
+          const targetChat = {
+            ...prevChats[existingIndex],
+            latestMessage: message,
+            updatedAt: new Date().toISOString(),
+          };
+          const remaining = prevChats.filter((c) => c._id !== chatId);
+          const updated = [targetChat, ...remaining];
+          storage.setChats(updated);
+          return updated;
+        }
+        return prevChats;
+      });
+
+      // If the chat wasn't found in local state (new chat created by another user), fetch it in background!
+      if (!chatFound) {
+        try {
+          const response = await api.get(`/chat/${chatId}`);
+          if (response.data) {
+            const newChat = {
+              ...response.data,
+              latestMessage: message,
+              updatedAt: new Date().toISOString(),
+            };
+            setChats((prev) => {
+              if (prev.some((c) => c._id === chatId)) return prev;
+              const updated = [newChat, ...prev];
+              storage.setChats(updated);
+              return updated;
+            });
+          }
+        } catch (e) {
+          console.error("Failed to fetch newly received chat:", e);
+        }
+      }
+    },
+    [],
+  );
+
+  const clearChatMessages = useCallback(async (chatId) => {
+    try {
+      await api.delete(`/chat/${chatId}/messages`);
+      storage.setMessages(chatId, []);
+      setChats((prevChats) => {
+        const updated = prevChats.map((c) =>
+          c._id === chatId ? { ...c, latestMessage: null } : c,
+        );
+        storage.setChats(updated);
+        return updated;
+      });
+      toast.success("Chat messages cleared");
+    } catch (error) {
+      console.error("Failed to clear chat messages:", error);
+      toast.error("Failed to clear chat messages");
+      throw error;
+    }
+  }, []);
+
+  const deleteChat = useCallback(async (chatId) => {
+    try {
+      await api.delete(`/chat/${chatId}`);
+      storage.setMessages(chatId, []);
+      setChats((prevChats) => {
+        const updated = prevChats.filter((c) => c._id !== chatId);
+        storage.setChats(updated);
+        return updated;
+      });
+      toast.success("Chat deleted");
+    } catch (error) {
+      console.error("Failed to delete chat:", error);
+      toast.error("Failed to delete chat");
+      throw error;
+    }
   }, []);
 
   return {
@@ -91,5 +172,7 @@ export const useChat = () => {
     fetchChatById,
     createChat,
     updateChatLatestMessage,
+    clearChatMessages,
+    deleteChat,
   };
 };

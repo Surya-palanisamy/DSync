@@ -2,17 +2,11 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const auth = require("../middleware/auth");
+const { invalidateUserCache, getCookieOptions } = require("../middleware/auth");
 const multer = require("multer");
-const cloudinary = require("cloudinary").v2;
+const cloudinary = require("../config/cloudinaryConfig");
 
 const router = express.Router();
-
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
 
 // Configure multer for avatar uploads
 const storage = multer.memoryStorage();
@@ -30,6 +24,9 @@ const upload = multer({
   },
 });
 
+// Email validation regex
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 // Helper function to generate JWT token
 const generateToken = (userId) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET, {
@@ -40,27 +37,17 @@ const generateToken = (userId) => {
 // Helper function to set secure cookie
 const setTokenCookie = (res, token) => {
   const cookieOptions = {
-    httpOnly: true,
-    secure: true, // Always use secure in production
-    sameSite: "none", // Required for cross-origin requests
+    ...getCookieOptions(),
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    path: "/",
   };
 
   res.cookie("token", token, cookieOptions);
 };
 
 // Helper function to clear cookie
-// Helper function to clear cookie
 const clearTokenCookie = (res) => {
-  res.clearCookie("token", {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none",
-    path: "/",
-  });
+  res.clearCookie("token", getCookieOptions());
 };
-
 
 // Helper function to format user response
 const formatUserResponse = (user) => {
@@ -87,6 +74,14 @@ router.post("/register", async (req, res) => {
       });
     }
 
+    // Email format validation
+    if (!EMAIL_REGEX.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid email format",
+      });
+    }
+
     if (password.length < 6) {
       return res.status(400).json({
         success: false,
@@ -94,7 +89,14 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    if (name.trim().length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: "Name must be at least 2 characters",
+      });
+    }
+
+    const existingUser = await User.findOne({ email: email.toLowerCase() }).lean();
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -138,6 +140,14 @@ router.post("/login", async (req, res) => {
       });
     }
 
+    // Email format validation
+    if (!EMAIL_REGEX.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid credentials",
+      });
+    }
+
     const user = await User.findOne({ email: email.toLowerCase().trim() });
     if (!user) {
       return res.status(400).json({
@@ -159,6 +169,9 @@ router.post("/login", async (req, res) => {
     user.lastSeen = new Date();
     await user.save();
 
+    // Invalidate any cached version of this user
+    invalidateUserCache(user._id.toString());
+
     const token = generateToken(user._id);
     setTokenCookie(res, token);
 
@@ -179,7 +192,8 @@ router.post("/login", async (req, res) => {
 // Get current user - This is the key endpoint for persistence
 router.get("/me", auth, async (req, res) => {
   try {
-    const user = await User.findById(req.userId).select("-password");
+    // req.user is already populated by the auth middleware (and may be cached)
+    const user = req.user;
     if (!user) {
       clearTokenCookie(res);
       return res.status(404).json({
@@ -205,13 +219,12 @@ router.get("/me", auth, async (req, res) => {
 // Logout
 router.post("/logout", auth, async (req, res) => {
   try {
-    const user = await User.findById(req.userId);
-    if (user) {
-      user.isOnline = false;
-      user.lastSeen = new Date();
-      await user.save();
-    }
+    await User.findByIdAndUpdate(req.userId, {
+      isOnline: false,
+      lastSeen: new Date(),
+    });
 
+    invalidateUserCache(req.userId.toString());
     clearTokenCookie(res);
 
     res.json({
@@ -251,10 +264,17 @@ router.put("/profile", auth, async (req, res) => {
 
     // Check if email is already taken by another user
     if (email && email !== user.email) {
+      if (!EMAIL_REGEX.test(email)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid email format",
+        });
+      }
+
       const existingUser = await User.findOne({
         email: email.toLowerCase().trim(),
         _id: { $ne: req.userId },
-      });
+      }).lean();
       if (existingUser) {
         return res.status(400).json({
           success: false,
@@ -267,6 +287,9 @@ router.put("/profile", auth, async (req, res) => {
     if (email) user.email = email.toLowerCase().trim();
 
     await user.save();
+
+    // Invalidate cached user data
+    invalidateUserCache(req.userId.toString());
 
     res.json({
       success: true,
@@ -333,6 +356,9 @@ router.post("/avatar", auth, upload.single("avatar"), async (req, res) => {
     user.avatar = result.secure_url;
     await user.save();
 
+    // Invalidate cached user data
+    invalidateUserCache(req.userId.toString());
+
     res.json({
       success: true,
       message: "Avatar updated successfully",
@@ -347,38 +373,29 @@ router.post("/avatar", auth, upload.single("avatar"), async (req, res) => {
   }
 });
 
-// Search users - Fixed endpoint with better error handling
+// Search users (Optimized)
 router.get("/users", auth, async (req, res) => {
   try {
     const { search } = req.query;
 
-    // Validate search term
-    if (!search || typeof search !== "string" || search.trim().length < 2) {
+    // Support single character searches for fast instant search
+    if (!search || typeof search !== "string" || !search.trim()) {
       return res.json([]);
     }
 
-    const searchTerm = search.trim();
-
-    // Validate search term length (prevent too short searches)
-    if (searchTerm.length < 2) {
-      return res.json([]);
-    }
+    const rawTerm = search.trim();
+    // Escape regex special characters to prevent regex injection or crashes
+    const escapedTerm = rawTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(escapedTerm, "i");
 
     // Search for users excluding current user
     const users = await User.find({
-      $and: [
-        { _id: { $ne: req.userId } },
-        {
-          $or: [
-            { name: { $regex: searchTerm, $options: "i" } },
-            { email: { $regex: searchTerm, $options: "i" } },
-          ],
-        },
-      ],
+      _id: { $ne: req.userId },
+      $or: [{ name: regex }, { email: regex }],
     })
-      .select("-password")
-      .limit(10)
-      .lean(); // Use lean() for better performance
+      .select("name email avatar isOnline lastSeen")
+      .limit(15)
+      .lean();
 
     // Format the response
     const formattedUsers = users.map((user) => ({
@@ -403,7 +420,7 @@ router.get("/users", auth, async (req, res) => {
 // Refresh token
 router.post("/refresh", auth, async (req, res) => {
   try {
-    const user = await User.findById(req.userId).select("-password");
+    const user = req.user;
     if (!user) {
       clearTokenCookie(res);
       return res.status(404).json({

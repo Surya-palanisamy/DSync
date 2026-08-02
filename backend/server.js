@@ -1,4 +1,11 @@
 // server.js
+const dns = require("dns");
+try {
+  dns.setServers(["8.8.8.8", "8.8.4.4", "1.1.1.1"]);
+} catch (err) {
+  console.warn("Could not set custom DNS servers:", err.message);
+}
+
 require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
@@ -6,61 +13,29 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const http = require("http");
 const socketIo = require("socket.io");
+const jwt = require("jsonwebtoken");
 const authRoutes = require("./routes/auth");
 const chatRoutes = require("./routes/chat");
 const messageRoutes = require("./routes/message");
+const { checkOrigin } = require("./middleware/cors");
+
+// Load models once at startup (not inside socket connection handlers)
+const Message = require("./models/Message");
+const Chat = require("./models/Chat");
+const User = require("./models/User");
 
 const app = express();
 const server = http.createServer(app);
 
-// ---------------------------
-// Allowed origins (explicit)
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:3000",
-  "http://127.0.0.1:5173",
-  "http://127.0.0.1:3000",
-  "https://dsync-chat.vercel.app",
-  "https://dsync.suryapalanisamy.tech",
-
-  process.env.FRONTEND_URL, // optional, if provided
-].filter(Boolean);
+const isProduction = process.env.NODE_ENV === "production";
 
 app.use(express.static("public"));
+
 // ---------------------------
-// Socket.io setup
+// Socket.io setup with shared CORS
 const io = socketIo(server, {
   cors: {
-    origin: (origin, callback) => {
-      // Note: socket.io passes undefined origin for non-browser clients
-      if (!origin) return callback(null, true);
-
-      // Exact match list
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      // Allow vercel preview subdomains: *.vercel.app
-      try {
-        const url = new URL(origin);
-        if (url.hostname && url.hostname.endsWith(".vercel.app")) {
-          return callback(null, true);
-        }
-      } catch (e) {
-        // ignore parse errors
-      }
-
-      // Allow localhost in development (any port)
-      if (
-        process.env.NODE_ENV !== "production" &&
-        origin.includes("localhost")
-      ) {
-        return callback(null, true);
-      }
-
-      console.log("Socket origin not allowed:", origin);
-      return callback(new Error("Not allowed by CORS"));
-    },
+    origin: checkOrigin,
     methods: ["GET", "POST"],
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
@@ -69,57 +44,50 @@ const io = socketIo(server, {
 });
 
 // ---------------------------
+// Socket.io authentication middleware
+// Verifies JWT on handshake to prevent unauthorized connections
+io.use((socket, next) => {
+  try {
+    const token =
+      socket.handshake.auth?.token ||
+      socket.handshake.headers?.cookie
+        ?.split("; ")
+        .find((c) => c.startsWith("token="))
+        ?.split("=")[1];
+
+    if (!token) {
+      // Allow connection but mark as unauthenticated
+      // The "join" event will still require a userId
+      return next();
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    socket.userId = decoded.userId;
+    next();
+  } catch (err) {
+    // Allow connection even if token is invalid — the client will
+    // re-authenticate via the "join" event
+    next();
+  }
+});
+
+// ---------------------------
 // Trust proxy in production so secure cookies behind proxies work correctly
-if (process.env.NODE_ENV === "production") {
+if (isProduction) {
   app.set("trust proxy", 1);
 }
 
 // ---------------------------
-// CORS middleware for express
+// CORS middleware for express (shared origin check)
 app.use(
   cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (curl, mobile apps, server-to-server)
-      if (!origin) {
-        console.log("No origin, allowing request");
-        return callback(null, true);
-      }
-
-      if (allowedOrigins.includes(origin)) {
-        console.log("Origin allowed:", origin);
-        return callback(null, true);
-      }
-
-      // Allow vercel preview subdomains: *.vercel.app
-      try {
-        const url = new URL(origin);
-        if (url.hostname && url.hostname.endsWith(".vercel.app")) {
-          console.log("Vercel preview origin allowed:", origin);
-          return callback(null, true);
-        }
-      } catch (e) {
-        // ignore parse errors
-      }
-
-      // Allow localhost in dev
-      if (
-        process.env.NODE_ENV !== "production" &&
-        origin.includes("localhost")
-      ) {
-        console.log("Development localhost allowed:", origin);
-        return callback(null, true);
-      }
-
-      console.log("Origin not allowed:", origin);
-      callback(new Error("Not allowed by CORS"));
-    },
+    origin: checkOrigin,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
       "Cookie",
-      "Access-Control-Allow-Credentials",
     ],
     exposedHeaders: ["Set-Cookie"],
     optionsSuccessStatus: 200,
@@ -136,17 +104,15 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
 // ---------------------------
-// Request logging middleware
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path}`, {
-    cookies: req.cookies,
-    headers: {
-      authorization: req.headers.authorization,
+// Request logging middleware (reduced in production)
+if (!isProduction) {
+  app.use((req, res, next) => {
+    console.log(`${req.method} ${req.path}`, {
       origin: req.headers.origin,
-    },
+    });
+    next();
   });
-  next();
-});
+}
 
 // ---------------------------
 // Basic routes / health
@@ -160,8 +126,7 @@ app.get("/health", (req, res) => {
 });
 
 // ---------------------------
-// API routes (note: your frontend expects /api/...)
-// keep these paths consistent with frontend api baseURL
+// API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/message", messageRoutes);
@@ -170,7 +135,6 @@ app.use("/api/message", messageRoutes);
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error("Error:", err && err.stack ? err.stack : err);
-  // If it's a CORS error thrown from origin callback, it may be an Error object
   if (err && err.message === "Not allowed by CORS") {
     return res
       .status(403)
@@ -179,16 +143,14 @@ app.use((err, req, res, next) => {
 
   res.status(500).json({
     success: false,
-    message:
-      process.env.NODE_ENV === "production"
-        ? "Internal server error"
-        : (err && err.message) || "Internal server error",
+    message: isProduction
+      ? "Internal server error"
+      : (err && err.message) || "Internal server error",
   });
 });
 
 // 404 handler
 app.use("*", (req, res) => {
-  console.log("404 - Route not found:", req.originalUrl);
   res.status(404).json({
     success: false,
     message: "Route not found",
@@ -196,12 +158,9 @@ app.use("*", (req, res) => {
 });
 
 // ---------------------------
-// MongoDB connection
+// MongoDB connection (removed deprecated options — no-ops since Mongoose 6+)
 mongoose
-  .connect(process.env.MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+  .connect(process.env.MONGODB_URI)
   .then(() => console.log("✅ Connected to MongoDB"))
   .catch((err) => console.error("❌ MongoDB error:", err));
 
@@ -210,13 +169,124 @@ mongoose
 const users = new Map();
 const onlineUsers = new Set();
 
-io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
+// Debounced batch writer for message status updates
+// Collects message-read and message-delivered events, flushes to DB periodically
+const pendingReads = new Map(); // messageId -> { chatId, userId, readAt }
+const pendingDeliveries = new Map(); // messageId -> { chatId, userId, deliveredAt }
 
-  // Lazy-load models inside the connection scope to avoid hoisting issues
-  const Message = require("./models/Message");
-  const Chat = require("./models/Chat");
-  const User = require("./models/User");
+const flushPendingReads = async () => {
+  if (pendingReads.size === 0) return;
+
+  const batch = new Map(pendingReads);
+  pendingReads.clear();
+
+  for (const [messageId, data] of batch) {
+    try {
+      const message = await Message.findById(messageId);
+      if (!message) continue;
+
+      const chat = await Chat.findById(data.chatId).select("users").lean();
+      if (!chat) continue;
+
+      const hasRead = (message.readBy || []).some(
+        (entry) => entry.user?.toString?.() === data.userId.toString()
+      );
+
+      if (!hasRead) {
+        message.readBy.push({ user: data.userId, readAt: data.readAt || new Date() });
+      }
+
+      const participantCount = (chat.users || []).filter(
+        (u) => u.toString() !== message.sender.toString()
+      ).length;
+
+      if (
+        participantCount > 0 &&
+        message.readBy.length >= participantCount &&
+        message.status !== "seen"
+      ) {
+        message.status = "seen";
+      }
+
+      await message.save();
+
+      io.to(data.chatId).emit("message-read", {
+        chatId: data.chatId,
+        messageId,
+        userId: data.userId,
+        status: message.status,
+        readBy: message.readBy,
+      });
+    } catch (error) {
+      console.error("Flush read error:", error);
+    }
+  }
+};
+
+const flushPendingDeliveries = async () => {
+  if (pendingDeliveries.size === 0) return;
+
+  const batch = new Map(pendingDeliveries);
+  pendingDeliveries.clear();
+
+  for (const [messageId, data] of batch) {
+    try {
+      const message = await Message.findById(messageId);
+      if (!message) continue;
+
+      const chat = await Chat.findById(data.chatId).select("users").lean();
+      if (!chat) continue;
+
+      const deliveredList = message.deliveredTo || [];
+      const alreadyDelivered = deliveredList.some(
+        (entry) => entry.user?.toString?.() === data.userId.toString()
+      );
+
+      if (!alreadyDelivered) {
+        deliveredList.push({
+          user: data.userId,
+          deliveredAt: data.deliveredAt || new Date(),
+        });
+        message.deliveredTo = deliveredList;
+      }
+
+      const participantCount = (chat.users || []).filter(
+        (u) => u.toString() !== message.sender.toString()
+      ).length;
+
+      if (
+        participantCount > 0 &&
+        deliveredList.length >= participantCount &&
+        message.status === "sent"
+      ) {
+        message.status = "delivered";
+      }
+
+      await message.save();
+
+      io.to(data.chatId).emit("message-delivered", {
+        chatId: data.chatId,
+        messageId,
+        userId: data.userId,
+        deliveredAt: data.deliveredAt || new Date(),
+        status: message.status,
+        deliveredTo: message.deliveredTo,
+      });
+    } catch (error) {
+      console.error("Flush delivery error:", error);
+    }
+  }
+};
+
+// Flush every 500ms instead of writing on every event
+const FLUSH_INTERVAL = 500;
+setInterval(flushPendingReads, FLUSH_INTERVAL);
+setInterval(flushPendingDeliveries, FLUSH_INTERVAL);
+
+io.on("connection", (socket) => {
+  if (!isProduction) {
+    console.log("User connected:", socket.id);
+  }
 
   socket.on("join", (userId) => {
     try {
@@ -229,7 +299,9 @@ io.on("connection", (socket) => {
         socket.broadcast.emit("user-online", userId);
         io.emit("online-users", Array.from(onlineUsers));
 
-        console.log(`User ${userId} joined`);
+        if (!isProduction) {
+          console.log(`User ${userId} joined`);
+        }
       }
     } catch (error) {
       console.error("Join error:", error);
@@ -240,7 +312,6 @@ io.on("connection", (socket) => {
     try {
       if (chatId) {
         socket.join(chatId);
-        console.log(`Socket ${socket.id} joined chat ${chatId}`);
       }
     } catch (error) {
       console.error("Join chat error:", error);
@@ -250,8 +321,19 @@ io.on("connection", (socket) => {
   socket.on("send-message", (data) => {
     try {
       if (data && data.chatId) {
-        // emit to everyone in the chat room except the sender
+        // Emit to chat room (for users currently inside the chat window)
         socket.to(data.chatId).emit("receive-message", data);
+
+        // Also emit directly to recipient user rooms so receivers get new messages & new chats in realtime
+        const usersToNotify = data.chat?.users || data.participants || [];
+        if (Array.isArray(usersToNotify)) {
+          usersToNotify.forEach((u) => {
+            const uId = typeof u === "object" ? u._id?.toString() : u?.toString();
+            if (uId && uId !== socket.userId) {
+              io.to(uId).emit("receive-message", data);
+            }
+          });
+        }
       }
     } catch (error) {
       console.error("Send message error:", error);
@@ -281,50 +363,12 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("message-read", async (data = {}) => {
+  // Debounced — queued for batch write
+  socket.on("message-read", (data = {}) => {
     const { chatId, messageId, userId } = data;
+    if (!chatId || !messageId || !userId) return;
 
-    try {
-      if (!chatId || !messageId || !userId) return;
-
-      const message = await Message.findById(messageId);
-      if (!message) return;
-
-      const chat = await Chat.findById(chatId).select("users");
-      if (!chat) return;
-
-      const hasRead = (message.readBy || []).some(
-        (entry) => entry.user?.toString?.() === userId.toString()
-      );
-
-      if (!hasRead) {
-        message.readBy.push({ user: userId, readAt: new Date() });
-      }
-
-      const participantCount = (chat.users || []).filter(
-        (u) => u.toString() !== message.sender.toString()
-      ).length;
-
-      if (
-        participantCount > 0 &&
-        message.readBy.length >= participantCount &&
-        message.status !== "seen"
-      ) {
-        message.status = "seen";
-      }
-
-      await message.save();
-
-      io.to(chatId).emit("message-read", {
-        chatId,
-        messageId,
-        userId,
-        status: message.status,
-        readBy: message.readBy,
-      });
-    } catch (error) {
-      console.error("Message read error:", error);
-    }
+    pendingReads.set(messageId, { chatId, userId, readAt: new Date() });
   });
 
   socket.on("message-liked", (data) => {
@@ -337,56 +381,16 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("message-delivered", async (data = {}) => {
+  // Debounced — queued for batch write
+  socket.on("message-delivered", (data = {}) => {
     const { chatId, messageId, userId, deliveredAt } = data;
+    if (!chatId || !messageId || !userId) return;
 
-    try {
-      if (!chatId || !messageId || !userId) return;
-
-      const message = await Message.findById(messageId);
-      if (!message) return;
-
-      const chat = await Chat.findById(chatId).select("users");
-      if (!chat) return;
-
-      const deliveredList = message.deliveredTo || [];
-      const alreadyDelivered = deliveredList.some(
-        (entry) => entry.user?.toString?.() === userId.toString()
-      );
-
-      if (!alreadyDelivered) {
-        deliveredList.push({
-          user: userId,
-          deliveredAt: deliveredAt || new Date(),
-        });
-        message.deliveredTo = deliveredList;
-      }
-
-      const participantCount = (chat.users || []).filter(
-        (u) => u.toString() !== message.sender.toString()
-      ).length;
-
-      if (
-        participantCount > 0 &&
-        deliveredList.length >= participantCount &&
-        message.status === "sent"
-      ) {
-        message.status = "delivered";
-      }
-
-      await message.save();
-
-      io.to(chatId).emit("message-delivered", {
-        chatId,
-        messageId,
-        userId,
-        deliveredAt: deliveredAt || new Date(),
-        status: message.status,
-        deliveredTo: message.deliveredTo,
-      });
-    } catch (error) {
-      console.error("Message delivered error:", error);
-    }
+    pendingDeliveries.set(messageId, {
+      chatId,
+      userId,
+      deliveredAt: deliveredAt || new Date(),
+    });
   });
 
   socket.on("message-edited", (data) => {
@@ -410,7 +414,9 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", async () => {
-    console.log("User disconnected:", socket.id);
+    if (!isProduction) {
+      console.log("User disconnected:", socket.id);
+    }
     try {
       for (const [userId, socketId] of users.entries()) {
         if (socketId === socket.id) {
@@ -432,7 +438,6 @@ io.on("connection", (socket) => {
           });
           io.emit("online-users", Array.from(onlineUsers));
 
-          console.log(`User ${userId} disconnected at ${lastSeen}`);
           break;
         }
       }

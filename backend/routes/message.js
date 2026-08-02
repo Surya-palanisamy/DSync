@@ -3,16 +3,9 @@ const Message = require("../models/Message");
 const Chat = require("../models/Chat");
 const auth = require("../middleware/auth");
 const multer = require("multer");
-const cloudinary = require("cloudinary").v2;
+const cloudinary = require("../config/cloudinaryConfig");
 
 const router = express.Router();
-
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
 
 // Multer config
 const storage = multer.memoryStorage();
@@ -30,16 +23,28 @@ router.get("/:chatId", auth, async (req, res) => {
   try {
     const { chatId } = req.params;
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    const limit = Math.min(parseInt(req.query.limit) || 20, 50); // Cap at 50
     const skip = (page - 1) * limit;
 
     const chat = await Chat.findOne({
       _id: chatId,
       users: { $elemMatch: { $eq: req.userId } },
-    });
+    })
+      .select("users clearedBy")
+      .lean();
     if (!chat) return res.status(403).json({ message: "Access denied" });
 
-    const messages = await Message.find({ chat: chatId })
+    // Check if current user cleared messages in this chat previously
+    const userClearedEntry = (chat.clearedBy || []).find(
+      (entry) => (entry.user?._id || entry.user)?.toString() === req.userId.toString()
+    );
+
+    const messageQuery = { chat: chatId };
+    if (userClearedEntry && userClearedEntry.clearedAt) {
+      messageQuery.createdAt = { $gt: userClearedEntry.clearedAt };
+    }
+
+    const messages = await Message.find(messageQuery)
       .populate("sender", "name email avatar")
       .populate("readBy.user", "name")
       .populate("deliveredTo.user", "name")
@@ -53,7 +58,7 @@ router.get("/:chatId", auth, async (req, res) => {
       .sort({ createdAt: -1 }) // Sort by newest first for pagination
       .skip(skip)
       .limit(limit)
-      .lean(); // Use lean for better performance
+      .lean();
 
     // Compute participant count (everyone except sender)
     const participantCount = (chat.users || []).length - 1;
@@ -90,7 +95,7 @@ router.get("/:chatId", auth, async (req, res) => {
 // Like/Unlike a message
 router.put("/:id/like", auth, async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.userId;
     const message = await Message.findById(req.params.id);
     if (!message) return res.status(404).json({ message: "Message not found" });
 
@@ -190,7 +195,9 @@ router.post("/", auth, async (req, res) => {
     const chat = await Chat.findOne({
       _id: chatId,
       users: { $elemMatch: { $eq: req.userId } },
-    });
+    })
+      .select("users")
+      .lean();
     if (!chat) return res.status(403).json({ message: "Access denied" });
 
     const newMessage = {
@@ -211,9 +218,13 @@ router.post("/", auth, async (req, res) => {
           path: "sender",
           select: "name",
         },
-      });
+      })
+      .lean();
 
-    await Chat.findByIdAndUpdate(chatId, { latestMessage: message._id });
+    await Chat.findByIdAndUpdate(chatId, {
+      latestMessage: message._id,
+      $set: { deletedFor: [] },
+    });
     res.json(message);
   } catch (error) {
     console.error("Send message error:", error);
@@ -232,7 +243,9 @@ router.post("/upload", auth, upload.single("file"), async (req, res) => {
     const chat = await Chat.findOne({
       _id: chatId,
       users: { $elemMatch: { $eq: req.userId } },
-    });
+    })
+      .select("users")
+      .lean();
     if (!chat) return res.status(403).json({ message: "Access denied" });
 
     const isImage = req.file.mimetype.startsWith("image/");
@@ -276,8 +289,12 @@ router.post("/upload", auth, upload.single("file"), async (req, res) => {
           path: "sender",
           select: "name",
         },
-      });
-    await Chat.findByIdAndUpdate(chatId, { latestMessage: message._id });
+      })
+      .lean();
+    await Chat.findByIdAndUpdate(chatId, {
+      latestMessage: message._id,
+      $set: { deletedFor: [] },
+    });
 
     res.json(message);
   } catch (error) {
@@ -300,7 +317,9 @@ router.put("/:messageId/read", auth, async (req, res) => {
     const chat = await Chat.findOne({
       _id: message.chat,
       users: { $elemMatch: { $eq: req.userId } },
-    });
+    })
+      .select("users")
+      .lean();
     if (!chat) return res.status(403).json({ message: "Access denied" });
 
     const alreadyRead = message.readBy.some(
@@ -330,6 +349,42 @@ router.put("/:messageId/read", auth, async (req, res) => {
   } catch (error) {
     console.error("Read error:", error);
     res.status(500).json({ message: "Failed to mark as read" });
+  }
+});
+
+// Batch mark all unread messages in a chat as read
+router.put("/mark-all-read/:chatId", auth, async (req, res) => {
+  try {
+    const { chatId } = req.params;
+
+    const chat = await Chat.findOne({
+      _id: chatId,
+      users: { $elemMatch: { $eq: req.userId } },
+    })
+      .select("users")
+      .lean();
+    if (!chat) return res.status(403).json({ message: "Access denied" });
+
+    // Find all unread messages in this chat not sent by current user
+    const result = await Message.updateMany(
+      {
+        chat: chatId,
+        sender: { $ne: req.userId },
+        "readBy.user": { $ne: req.userId },
+      },
+      {
+        $push: { readBy: { user: req.userId, readAt: new Date() } },
+      }
+    );
+
+    res.json({
+      success: true,
+      message: `Marked ${result.modifiedCount} messages as read`,
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Batch read error:", error);
+    res.status(500).json({ message: "Failed to mark messages as read" });
   }
 });
 

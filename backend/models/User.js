@@ -37,6 +37,10 @@ const userSchema = new mongoose.Schema(
   }
 );
 
+// Indexes for fast user search queries
+userSchema.index({ name: 1 });
+userSchema.index({ name: "text", email: "text" });
+
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
   this.password = await bcrypt.hash(this.password, 12);

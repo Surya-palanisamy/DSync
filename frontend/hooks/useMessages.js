@@ -4,14 +4,20 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import api from "@/lib/api";
 import { storage } from "@/lib/storage";
 
-export const useMessages = (chatId) => {
+export const useMessages = (chatId, currentUser = null) => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
   const optimisticMessagesRef = useRef(new Map());
   const fetchedChatRef = useRef(null);
+  const messagesRef = useRef(messages);
   const MESSAGES_PER_PAGE = 20;
+
+  // Keep ref in sync with state (avoids messages in dependency arrays)
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const normalizeMessage = useCallback((msg) => {
     if (!msg) return msg;
@@ -105,10 +111,18 @@ export const useMessages = (chatId) => {
           setPage(2);
         } else {
           setMessages((prev) => {
-            const combined = [...newMessages, ...prev];
-            const unique = combined.filter(
-              (msg, index, arr) =>
-                arr.findIndex((m) => m._id === msg._id) === index,
+            // O(n) deduplication using a Map instead of O(n²) findIndex
+            const msgMap = new Map();
+            for (const msg of newMessages) {
+              msgMap.set(msg._id, msg);
+            }
+            for (const msg of prev) {
+              if (!msgMap.has(msg._id)) {
+                msgMap.set(msg._id, msg);
+              }
+            }
+            const unique = Array.from(msgMap.values()).sort(
+              (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
             );
             storage.setMessages(chatId, unique);
             return unique;
@@ -149,37 +163,30 @@ export const useMessages = (chatId) => {
 
       const optimisticId = generateOptimisticId();
 
-      const getCurrentUser = () => {
+      // Get user from localStorage once (instead of inline function on every call)
+      const getUser = () => {
+        if (currentUser) return currentUser;
         if (typeof window === "undefined")
           return { id: "temp", name: "You", avatar: "" };
         try {
           const storedUser = localStorage.getItem("user");
-          if (storedUser) {
-            return JSON.parse(storedUser);
-          }
-          const userCookie = document.cookie
-            .split("; ")
-            .find((row) => row.startsWith("user="));
-          if (userCookie) {
-            return JSON.parse(decodeURIComponent(userCookie.split("=")[1]));
-          }
+          if (storedUser) return JSON.parse(storedUser);
           return { id: "temp", name: "You", avatar: "" };
-        } catch (error) {
-          console.error("Error getting current user:", error);
+        } catch {
           return { id: "temp", name: "You", avatar: "" };
         }
       };
 
-      const currentUser = getCurrentUser();
+      const user = getUser();
 
       const optimisticMessage = {
         _id: optimisticId,
         content: content || (file ? file.name : ""),
         messageType,
         sender: {
-          _id: currentUser.id,
-          name: currentUser.name,
-          avatar: currentUser.avatar,
+          _id: user.id,
+          name: user.name,
+          avatar: user.avatar,
         },
         chat: chatId,
         createdAt: new Date().toISOString(),
@@ -248,12 +255,16 @@ export const useMessages = (chatId) => {
         throw error;
       }
     },
-    [chatId, normalizeMessage],
+    [chatId, normalizeMessage, currentUser],
   );
 
+  // Uses functional state updates + ref — no dependency on `messages`
   const editMessage = useCallback(
     async (messageId, newContent) => {
-      const originalMessage = messages.find((msg) => msg._id === messageId);
+      const originalMessage = messagesRef.current.find(
+        (msg) => msg._id === messageId,
+      );
+
       setMessages((prev) => {
         const updated = prev.map((msg) =>
           msg._id === messageId
@@ -283,12 +294,16 @@ export const useMessages = (chatId) => {
         throw error;
       }
     },
-    [messages, chatId],
+    [chatId], // No `messages` dependency — uses messagesRef
   );
 
+  // Uses functional state updates + ref — no dependency on `messages`
   const deleteMessage = useCallback(
     async (messageId) => {
-      const messageToDelete = messages.find((msg) => msg._id === messageId);
+      const messageToDelete = messagesRef.current.find(
+        (msg) => msg._id === messageId,
+      );
+
       setMessages((prev) => {
         const updated = prev.filter((msg) => msg._id !== messageId);
         storage.setMessages(chatId, updated);
@@ -311,12 +326,15 @@ export const useMessages = (chatId) => {
         throw error;
       }
     },
-    [messages, chatId],
+    [chatId], // No `messages` dependency — uses messagesRef
   );
 
+  // Uses functional state updates + ref — no dependency on `messages`
   const likeMessage = useCallback(
     async (messageId) => {
-      const getCurrentUser = () => {
+      // Get user from prop or localStorage
+      const getUser = () => {
+        if (currentUser) return { id: currentUser.id };
         if (typeof window === "undefined") return { id: "temp" };
         try {
           const storedUser = localStorage.getItem("user");
@@ -324,33 +342,25 @@ export const useMessages = (chatId) => {
             const user = JSON.parse(storedUser);
             return { id: user.id };
           }
-          const userCookie = document.cookie
-            .split("; ")
-            .find((row) => row.startsWith("user="));
-          if (userCookie) {
-            const user = JSON.parse(
-              decodeURIComponent(userCookie.split("=")[1]),
-            );
-            return { id: user.id };
-          }
           return { id: "temp" };
-        } catch (error) {
-          console.error("Error getting current user for like:", error);
+        } catch {
           return { id: "temp" };
         }
       };
 
-      const currentUser = getCurrentUser();
-      const originalMessage = messages.find((msg) => msg._id === messageId);
+      const user = getUser();
+      const originalMessage = messagesRef.current.find(
+        (msg) => msg._id === messageId,
+      );
 
       setMessages((prev) => {
         const updated = prev.map((msg) => {
           if (msg._id === messageId) {
             const likes = msg.likes || [];
-            const isLiked = likes.includes(currentUser.id);
+            const isLiked = likes.includes(user.id);
             const newLikes = isLiked
-              ? likes.filter((id) => id !== currentUser.id)
-              : [...likes, currentUser.id];
+              ? likes.filter((id) => id !== user.id)
+              : [...likes, user.id];
             return { ...msg, likes: newLikes };
           }
           return msg;
@@ -386,7 +396,7 @@ export const useMessages = (chatId) => {
         throw error;
       }
     },
-    [messages, chatId],
+    [chatId, currentUser], // No `messages` dependency — uses messagesRef
   );
 
   const markAsRead = useCallback(async (messageId) => {
@@ -435,6 +445,11 @@ export const useMessages = (chatId) => {
     [chatId],
   );
 
+  const clearAllMessages = useCallback(() => {
+    setMessages([]);
+    storage.setMessages(chatId, []);
+  }, [chatId]);
+
   return {
     messages,
     loading,
@@ -448,5 +463,6 @@ export const useMessages = (chatId) => {
     updateMessage,
     removeMessage,
     loadMoreMessages,
+    clearAllMessages,
   };
 };

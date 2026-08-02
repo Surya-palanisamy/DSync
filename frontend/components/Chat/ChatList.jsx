@@ -2,7 +2,7 @@
 
 import React, { memo } from "react";
 import { motion } from "framer-motion";
-import { Users, Check, CheckCheck } from "lucide-react";
+import { Users, Check, CheckCheck, Trash2 } from "lucide-react";
 
 const ChatList = memo(
   ({
@@ -12,6 +12,7 @@ const ChatList = memo(
     onChatSelect,
     currentUser,
     onlineUsers,
+    onDeleteChat,
   }) => {
     const formatTime = (date) => {
       const now = new Date();
@@ -156,6 +157,26 @@ const ChatList = memo(
                 )}
               </div>
             </div>
+
+            {onDeleteChat && (
+              <button
+                className="delete-chat-item-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (
+                    window.confirm(
+                      `Are you sure you want to delete chat with "${getChatName(chat)}"?`
+                    )
+                  ) {
+                    onDeleteChat(chat._id);
+                  }
+                }}
+                title="Delete chat"
+                type="button"
+              >
+                <Trash2 size={15} />
+              </button>
+            )}
 
             {selectedChat?._id === chat._id && (
               <motion.div

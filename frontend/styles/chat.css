@@ -361,6 +361,31 @@ input, textarea, select {
   border-left: 3px solid #8b5cf6;
 }
 
+.delete-chat-item-btn {
+  background: transparent;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  opacity: 0;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+
+.chat-item:hover .delete-chat-item-btn {
+  opacity: 1;
+}
+
+.delete-chat-item-btn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+}
+
 .chat-avatar-container {
   position: relative;
   margin-right: 12px;
@@ -1047,63 +1072,90 @@ input, textarea, select {
   fill: #ef4444;
 }
 
-/* Reply Preview */
-.reply-preview {
+/* Instagram-Style Embedded Reply inside Message Bubble */
+.embedded-reply {
   display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
-  padding: 8px;
-  background: rgba(255, 255, 255, 0.1);
+  flex-direction: column;
+  padding: 6px 10px;
+  margin-bottom: 6px;
   border-radius: 8px;
-  border-left: 3px solid #8b5cf6;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, opacity 0.2s ease;
+  user-select: none;
+  position: relative;
+  width: 100%;
 }
 
-.reply-preview:hover {
-  background: rgba(255, 255, 255, 0.15);
+/* Sent message bubble (Purple / Magenta Gradient) embedded reply styling */
+.message.sent .embedded-reply {
+  background: rgba(0, 0, 0, 0.25);
+  border-left: 3px solid rgba(255, 255, 255, 0.9);
 }
 
-.reply-preview.highlighted {
-  animation: highlightPulse 2s ease-out;
+.message.sent .embedded-reply:hover {
+  background: rgba(0, 0, 0, 0.35);
 }
 
-@keyframes highlightPulse {
-  0% {
-    background: rgba(139, 92, 246, 0.3);
-    border-left-color: #8b5cf6;
-    box-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
-  }
-  100% {
-    background: rgba(255, 255, 255, 0.1);
-    border-left-color: #8b5cf6;
-    box-shadow: none;
-  }
+.message.sent .embedded-reply-sender {
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
 }
 
-.reply-line {
-  width: 3px;
-  background: #8b5cf6;
-  border-radius: 2px;
-}
-
-.reply-content {
-  flex: 1;
-}
-
-.reply-sender {
+.message.sent .embedded-reply-text {
   font-size: 12px;
-  font-weight: 500;
-  color: #8b5cf6;
-}
-
-.reply-text {
-  font-size: 12px;
-  color: #8696a0;
+  color: rgba(255, 255, 255, 0.85);
   margin: 2px 0 0 0;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Received message bubble (Dark Grey) embedded reply styling */
+.message.received .embedded-reply {
+  background: rgba(255, 255, 255, 0.08);
+  border-left: 3px solid #c084fc;
+}
+
+.message.received .embedded-reply:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.message.received .embedded-reply-sender {
+  font-size: 11px;
+  font-weight: 600;
+  color: #c084fc;
+}
+
+.message.received .embedded-reply-text {
+  font-size: 12px;
+  color: #9ca3af;
+  margin: 2px 0 0 0;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.embedded-reply-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Highlight animation when clicking quoted reply */
+.message.highlighted .message-bubble {
+  animation: instagramHighlightPulse 1.8s ease-out;
+}
+
+@keyframes instagramHighlightPulse {
+  0% {
+    box-shadow: 0 0 0 3px rgba(192, 132, 252, 0.8), 0 0 20px rgba(192, 132, 252, 0.4);
+    transform: scale(1.02);
+  }
+  100% {
+    box-shadow: none;
+    transform: scale(1);
+  }
 }
 
 /* Edit Input */
@@ -1207,39 +1259,79 @@ input, textarea, select {
   padding: 8px 16px;
 }
 
+/* Instagram-Style Reply Banner above Message Input */
 .reply-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: #222222;
-  border-radius: 8px;
+  background: #18181b;
+  border-radius: 12px;
   margin-bottom: 8px;
-  border-left: 3px solid #160147;
+  border: 1px solid #27272a;
+  border-left: 3px solid #c084fc;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  animation: slideUpReply 0.2s ease-out;
 }
 
-.reply-banner span {
+@keyframes slideUpReply {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reply-banner-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  margin-right: 12px;
+}
+
+.reply-banner-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: #a1a1aa;
+}
+
+.reply-banner-name {
+  color: #e4e4e7;
+  font-weight: 600;
+}
+
+.reply-banner-text {
   font-size: 13px;
-  color: #8696a0;
+  color: #71717a;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .reply-banner .close-btn {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border: none;
-  background: transparent;
-  color: #8696a0;
+  background: rgba(255, 255, 255, 0.06);
+  color: #a1a1aa;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
 }
 
 .reply-banner .close-btn:hover {
-  background: #333333;
+  background: rgba(255, 255, 255, 0.15);
   color: #ffffff;
+  transform: scale(1.08);
 }
 
 .image-preview-banner {

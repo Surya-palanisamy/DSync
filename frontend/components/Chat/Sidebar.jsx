@@ -18,6 +18,7 @@ const Sidebar = memo(
     onChatSelect,
     onlineUsers,
     onCreateChat,
+    onDeleteChat,
   }) => {
     const [searchTerm, setSearchTerm] = useState("");
     const [showUserSearch, setShowUserSearch] = useState(false);
@@ -129,6 +130,7 @@ const Sidebar = memo(
               onChatSelect={onChatSelect}
               currentUser={user}
               onlineUsers={onlineUsers}
+              onDeleteChat={onDeleteChat}
             />
           </div>
         </div>

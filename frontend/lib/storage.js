@@ -1,3 +1,26 @@
+// Debounce timer references for batched localStorage writes
+const writeTimers = {};
+const WRITE_DEBOUNCE_MS = 300;
+
+/**
+ * Debounced localStorage write. Batches rapid writes to the same key
+ * into a single I/O operation after WRITE_DEBOUNCE_MS of inactivity.
+ */
+const debouncedWrite = (key, value) => {
+  if (typeof window === "undefined") return;
+  if (writeTimers[key]) {
+    clearTimeout(writeTimers[key]);
+  }
+  writeTimers[key] = setTimeout(() => {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+      console.error(`Failed to write ${key} to localStorage:`, error);
+    }
+    delete writeTimers[key];
+  }, WRITE_DEBOUNCE_MS);
+};
+
 export const storage = {
   setUser: (user) => {
     if (typeof window === "undefined") return;
@@ -28,47 +51,13 @@ export const storage = {
     }
   },
 
-  setToken: (token) => {
-    if (typeof window === "undefined") return;
-    try {
-      localStorage.setItem("token", token);
-    } catch (error) {
-      console.error("Failed to save token to localStorage:", error);
-    }
-  },
-
-  getToken: () => {
-    if (typeof window === "undefined") return null;
-    try {
-      return localStorage.getItem("token");
-    } catch (error) {
-      console.error("Failed to get token from localStorage:", error);
-      return null;
-    }
-  },
-
-  removeToken: () => {
-    if (typeof window === "undefined") return;
-    try {
-      localStorage.removeItem("token");
-    } catch (error) {
-      console.error("Failed to remove token from localStorage:", error);
-    }
-  },
-
   setChats: (chats) => {
     if (typeof window === "undefined") return;
     try {
       const limitedChats = chats.slice(0, 50);
-      localStorage.setItem("chats", JSON.stringify(limitedChats));
+      debouncedWrite("chats", limitedChats);
     } catch (error) {
       console.error("Failed to save chats to localStorage:", error);
-      try {
-        localStorage.removeItem("chats");
-        localStorage.setItem("chats", JSON.stringify(chats.slice(0, 20)));
-      } catch (retryError) {
-        console.error("Failed to save chats after cleanup:", retryError);
-      }
     }
   },
 
@@ -85,27 +74,8 @@ export const storage = {
 
   setMessages: (chatId, messages) => {
     if (typeof window === "undefined") return;
-    try {
-      const limitedMessages = messages.slice(-200);
-      localStorage.setItem(
-        `messages_${chatId}`,
-        JSON.stringify(limitedMessages),
-      );
-    } catch (error) {
-      console.error(`Failed to save messages for chat ${chatId}:`, error);
-      try {
-        const evenMoreLimited = messages.slice(-100);
-        localStorage.setItem(
-          `messages_${chatId}`,
-          JSON.stringify(evenMoreLimited),
-        );
-      } catch (retryError) {
-        console.error(
-          `Failed to save messages after cleanup for chat ${chatId}:`,
-          retryError,
-        );
-      }
-    }
+    const limitedMessages = messages.slice(-200);
+    debouncedWrite(`messages_${chatId}`, limitedMessages);
   },
 
   getMessages: (chatId) => {
@@ -153,18 +123,39 @@ export const storage = {
     }
   },
 
+  /**
+   * LRU eviction for message caches.
+   * Keeps the 10 most recently accessed message caches, evicts the rest.
+   */
   cleanupOldMessages: () => {
     if (typeof window === "undefined") return;
     try {
       const keys = Object.keys(localStorage);
       const messageKeys = keys.filter((key) => key.startsWith("messages_"));
 
-      if (messageKeys.length > 10) {
-        const keysToRemove = messageKeys.slice(10);
-        keysToRemove.forEach((key) => {
-          localStorage.removeItem(key);
-        });
-      }
+      if (messageKeys.length <= 10) return;
+
+      // Sort by the latest message timestamp in each cache (most recent first)
+      const keysWithTimestamp = messageKeys.map((key) => {
+        try {
+          const messages = JSON.parse(localStorage.getItem(key));
+          const lastMessage = messages[messages.length - 1];
+          const timestamp = lastMessage?.createdAt
+            ? new Date(lastMessage.createdAt).getTime()
+            : 0;
+          return { key, timestamp };
+        } catch {
+          return { key, timestamp: 0 };
+        }
+      });
+
+      keysWithTimestamp.sort((a, b) => b.timestamp - a.timestamp);
+
+      // Keep top 10, evict the rest
+      const keysToRemove = keysWithTimestamp.slice(10);
+      keysToRemove.forEach(({ key }) => {
+        localStorage.removeItem(key);
+      });
     } catch (error) {
       console.error("Failed to cleanup old messages:", error);
     }

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Send, ImageIcon, Paperclip, X } from "lucide-react";
 
-const MessageInput = ({ onSendMessage, onTyping, replyTo, setReplyTo }) => {
+const MessageInput = ({ onSendMessage, onTyping, replyTo, setReplyTo, currentUser }) => {
   const [message, setMessage] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
   const [imageFile, setImageFile] = useState(null);
@@ -64,11 +64,24 @@ const MessageInput = ({ onSendMessage, onTyping, replyTo, setReplyTo }) => {
     <div className="message-input-container">
       {replyTo && (
         <div className="reply-banner">
-          <span>
-            Replying to <strong>{replyTo.sender.name}</strong>:{" "}
-            {replyTo.content}
-          </span>
-          <button className="close-btn" onClick={() => setReplyTo(null)}>
+          <div className="reply-banner-info">
+            <span className="reply-banner-title">
+              Replying to{" "}
+              <span className="reply-banner-name">
+                {replyTo.sender?._id === currentUser?.id || replyTo.sender === currentUser?.id
+                  ? "yourself"
+                  : replyTo.sender?.name || "User"}
+              </span>
+            </span>
+            <p className="reply-banner-text">
+              {replyTo.messageType === "image"
+                ? "📷 Photo"
+                : replyTo.messageType === "file"
+                ? "📄 File"
+                : replyTo.content}
+            </p>
+          </div>
+          <button className="close-btn" onClick={() => setReplyTo(null)} title="Cancel reply" type="button">
             <X size={16} />
           </button>
         </div>

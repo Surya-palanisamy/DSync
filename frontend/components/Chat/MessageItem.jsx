@@ -194,22 +194,28 @@ const MessageItem = memo(
             <div className="sender-name">{message.sender.name}</div>
           )}
 
-          {message.replyTo && (
-            <div className="reply-preview" onClick={handleReplyClick}>
-              <div className="reply-line"></div>
-              <div className="reply-content">
-                <span className="reply-sender">
-                  {message.replyTo.sender?.name}
-                </span>
-                <p className="reply-text">{message.replyTo.content}</p>
-              </div>
-            </div>
-          )}
-
           <div className="message-bubble-container">
             <div
               className={`message-bubble ${status === "failed" ? "failed" : ""}`}
             >
+              {message.replyTo && (
+                <div className="embedded-reply" onClick={handleReplyClick} role="button" tabIndex={0}>
+                  <div className="embedded-reply-content">
+                    <span className="embedded-reply-sender">
+                      {message.replyTo.sender?._id === currentUser?.id || message.replyTo.sender === currentUser?.id
+                        ? "You"
+                        : message.replyTo.sender?.name || "User"}
+                    </span>
+                    <p className="embedded-reply-text">
+                      {message.replyTo.messageType === "image"
+                        ? "📷 Photo"
+                        : message.replyTo.messageType === "file"
+                        ? "📄 File"
+                        : message.replyTo.content}
+                    </p>
+                  </div>
+                </div>
+              )}
               {message.messageType === "image" ? (
                 <div className="message-image-container">
                   {isOptimistic && status === "sending" ? (
